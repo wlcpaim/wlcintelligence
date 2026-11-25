@@ -80,6 +80,9 @@ export function detectFakeRouting(files: ArchFile[]): ArchIssue[] {
 export function detectMissingRouter(files: ArchFile[]): ArchIssue[] {
   const map = byPath(files);
   const issues: ArchIssue[] = [];
+  const pkg = map.get("package.json")?.content ?? "";
+  const isMeta = /@tanstack\/react-start|"next"|"nuxt"|"astro"/.test(pkg) || map.has("src/routes/__root.tsx") || map.has("src/router.tsx");
+  if (isMeta) return issues;
   const app = map.get("src/App.tsx") ?? map.get("src/App.jsx");
   const pkg = map.get("package.json")?.content;
   const allCode = [...map.values()]
