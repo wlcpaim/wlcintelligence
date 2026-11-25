@@ -1,7 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { GEMINI_MODEL } from "@/config/app";
-import { getPresetGeminiKeys } from "./credentials.server";
+function getPresetGeminiKeys(): string[] {
+  const raw = process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS || "";
+  return raw
+    .split(/[,;\n]/)
+    .map((k) => k.trim())
+    .filter(Boolean);
+}
 import { listKeys, addKey } from "../gemini/services/keys.server";
 import { hintOf } from "../core/crypto.server";
 import { safeMessage } from "../core/errors";
