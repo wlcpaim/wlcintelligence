@@ -1,0 +1,36 @@
+name: WLC Runner
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: Comando executado pelo bot WLC
+        required: true
+      run_tag:
+        description: Identificador da execução
+        required: false
+run-name: "WLC bot ${{ inputs.run_tag }}"
+permissions:
+  contents: read
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar dependências
+        run: |
+          if [ -f bun.lockb ] || [ -f bun.lock ]; then bun install || true
+          elif [ -f package-lock.json ]; then npm ci || npm install || true
+          elif [ -f package.json ]; then npm install || true; fi
+          if [ -f requirements.txt ]; then pip install -r requirements.txt || true; fi
+      - name: Comando do bot
+        env:
+          WLC_COMMAND: ${{ inputs.command }}
+        run: bash -c "$WLC_COMMAND"
