@@ -463,9 +463,12 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
       <div className="mx-auto w-full max-w-3xl px-3 pb-3">
         {isSystem && connection && <div role="status" className="mb-2 flex min-w-0 items-center gap-2 font-mono text-xs text-success" title={`Sessão verificada em ${connection.checkedAt}; agente externo ainda não pareado`}><PlugZap className="h-3.5 w-3.5 shrink-0" /><span className="shrink-0">CANAL PRONTO</span><span className="truncate">{connection.projectName}</span></div>}
         {error && <p role="status" className="mb-2 flex items-start gap-2 text-xs text-muted-foreground"><span className="flex-1">{error}</span><Button variant="ghost" size="icon-sm" title="Dispensar aviso" aria-label="Dispensar aviso" onClick={() => setError(null)}><X /></Button></p>}
-        <PromptInput onSubmit={() => void send()}>
+        <PromptInput
+          onSubmit={() => void send()}
+          className="rounded-2xl border border-border/80 bg-card shadow-sm ring-1 ring-black/5 transition-[box-shadow,border-color] focus-within:border-primary/40 focus-within:shadow-md dark:ring-white/10"
+        >
           {autoTxt.attachments.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-1.5">
+            <div className="mb-1 flex flex-wrap gap-1.5 px-1 pt-1">
               {autoTxt.attachments.map((a) => (
                 <span key={a.id} title={`${a.name} — ${a.size.toLocaleString("pt-BR")} caracteres`}
                   className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/60 px-2.5 py-1 font-mono text-xs">
@@ -490,11 +493,18 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
             } value={text} maxLength={isSystem ? 100_000 : 100_000}
             onChange={e => autoTxt.handleChange(e.target.value, setText)}
             onPaste={e => autoTxt.handlePaste(e, text, setText)}
-            className={`min-h-12 text-base ${isSystem ? "font-mono text-sm" : ""}`} />
-          <PromptInputFooter>
-            <span className="flex-1"><VersionSelector /></span>
-            <PromptInputSubmit status={busy ? "streaming" : "ready"} disabled={!busy && ((!text.trim() && autoTxt.attachments.length === 0) || !!applying)} onStop={() => { abort.current?.abort(); setConnection(null); setError(isSystem ? "Resposta interrompida; confira status e diff antes de repetir a ação." : "Comando interrompido; nenhum arquivo foi alterado."); }} aria-label={busy ? "Parar Copilot" : "Enviar ao Copilot"} title={busy ? "Parar Copilot" : "Enviar ao Copilot"}>
-              {busy ? <Square className="fill-current" /> : <ArrowUp />}
+            className={`min-h-[3.25rem] px-1 text-base leading-relaxed ${isSystem ? "font-mono text-sm" : ""}`} />
+          <PromptInputFooter className="items-center gap-2 px-1 pb-1 pt-0.5">
+            <span className="min-w-0 flex-1"><VersionSelector /></span>
+            <PromptInputSubmit
+              status={busy ? "streaming" : "ready"}
+              className="size-9 shrink-0 rounded-xl"
+              disabled={!busy && ((!text.trim() && autoTxt.attachments.length === 0) || !!applying)}
+              onStop={() => { abort.current?.abort(); setConnection(null); setError(isSystem ? "Resposta interrompida; confira status e diff antes de repetir a ação." : "Comando interrompido; nenhum arquivo foi alterado."); }}
+              aria-label={busy ? "Parar Copilot" : "Enviar ao Copilot"}
+              title={busy ? "Parar Copilot" : "Enviar ao Copilot"}
+            >
+              {busy ? <Square className="size-3.5 fill-current" /> : <ArrowUp className="size-4" />}
             </PromptInputSubmit>
           </PromptInputFooter>
         </PromptInput>

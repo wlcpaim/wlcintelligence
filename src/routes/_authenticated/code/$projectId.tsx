@@ -368,49 +368,139 @@ function EditorPage() {
 
   return (
     <div className="flex h-full flex-col bg-[var(--code-editor)] text-foreground">
-      <header className="flex h-11 min-w-0 shrink-0 items-center gap-1 border-b border-border px-2 sm:gap-2">
-        <Button asChild variant="ghost" size="icon-sm" aria-label="Projetos"><Link to="/code"><ArrowLeft /></Link></Button>
-        <Button variant="ghost" size="icon-sm" title={explorerOpen ? "Recolher explorador" : "Abrir explorador"} aria-label={explorerOpen ? "Recolher explorador" : "Abrir explorador"} aria-expanded={explorerOpen} onClick={() => setExplorerOpen(v => !v)}><PanelLeft /></Button>
-        <Button variant="ghost" size="icon-sm" title={editorOpen ? "Recolher editor" : "Abrir editor"} aria-label={editorOpen ? "Recolher editor" : "Abrir editor"} aria-expanded={editorOpen} onClick={() => setEditorOpen(v => !v)}><PanelsTopLeft /></Button>
-        <Code2 className="hidden h-4 w-4 shrink-0 text-primary sm:block" />
-        <span className="hidden text-muted-foreground sm:inline">/</span><span className="hidden min-w-0 truncate font-mono text-xs sm:inline">{p?.name}</span>
-        {p?.repo_full_name && <span className="hidden items-center gap-1 truncate text-xs text-muted-foreground sm:flex"><Github className="h-3 w-3" />{p.repo_full_name}:{p.branch}</span>}
-        {p?.deploy_url && <Button asChild variant="ghost" size="icon-sm" className="ml-auto" title={p.deploy_url} aria-label="Abrir site publicado"><a href={p.deploy_url} target="_blank" rel="noreferrer"><ExternalLink /></a></Button>}
-        <input
-          ref={zipInputRef}
-          type="file"
-          accept=".zip,application/zip,application/x-zip-compressed"
-          className="hidden"
-          onChange={handleZipUpload}
-        />
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 shrink-0 gap-1.5 text-xs"
-          disabled={uploadingZip || syncing || deploying}
-          onClick={() => zipInputRef.current?.click()}
-          title="Aplicar alterações de um arquivo ZIP no projeto"
-        >
-          {uploadingZip ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-          <span className="hidden sm:inline">Upload ZIP</span>
-        </Button>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          className="h-7 shrink-0"
-          disabled={syncing}
-          onClick={synchronize}
-          title="Sincronizar com o GitHub"
-          aria-label="Sincronizar com o GitHub"
-        >
-          <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-        </Button>
-        <Button size="sm" variant="outline" className={`${p?.deploy_url ? "" : "ml-auto "}h-7 shrink-0`} disabled={deploying} onClick={runDeploy}>
-          {deploying ? <Loader2 className="animate-spin" /> : <Rocket />}{deploying && stage ? <span className="max-w-28 truncate">{stage}…</span> : "Deploy"}
-        </Button>
-        <Button size="sm" className="h-7 shrink-0" onClick={() => { void flush().then(() => setCommitOpen(true)).catch(() => toast.error("Salve os arquivos antes do commit.")); }}>
-          <GitCommitHorizontal />Commit{pending.length > 0 && <span className="rounded bg-primary-foreground/20 px-1.5 text-[11px]">{pending.length}</span>}
-        </Button>
+      <header className="shrink-0 border-b border-border">
+        {/* Linha 1 — ações principais: Commit + Deploy */}
+        <div className="flex h-11 min-w-0 items-center gap-2 px-3">
+          <Button asChild variant="ghost" size="icon-sm" aria-label="Projetos" className="shrink-0">
+            <Link to="/code"><ArrowLeft /></Link>
+          </Button>
+          <Code2 className="hidden h-4 w-4 shrink-0 text-primary sm:block" />
+          <span className="min-w-0 flex-1 truncate font-mono text-xs">
+            <span className="text-muted-foreground">/</span>
+            <span className="ml-1">{p?.name}</span>
+            {p?.repo_full_name && (
+              <span className="ml-2 hidden items-center gap-1 text-muted-foreground sm:inline-flex">
+                <Github className="h-3 w-3" />{p.repo_full_name}:{p.branch}
+              </span>
+            )}
+          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              size="sm"
+              className="h-8 gap-1.5 px-3"
+              onClick={() => {
+                void flush()
+                  .then(() => setCommitOpen(true))
+                  .catch(() => toast.error("Salve os arquivos antes do commit."));
+              }}
+            >
+              <GitCommitHorizontal className="h-4 w-4" />
+              Commit
+              {pending.length > 0 && (
+                <span className="rounded bg-primary-foreground/20 px-1.5 text-[11px]">{pending.length}</span>
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 px-3"
+              disabled={deploying}
+              onClick={runDeploy}
+            >
+              {deploying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+              {deploying && stage ? <span className="max-w-28 truncate">{stage}…</span> : "Deploy"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Linha 2 — visualizadores + ações secundárias menores */}
+        <div className="flex h-9 min-w-0 items-center gap-1 border-t border-border/60 bg-muted/20 px-3">
+          <div className="flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="h-7 w-7"
+              title={explorerOpen ? "Recolher explorador" : "Abrir explorador"}
+              aria-label={explorerOpen ? "Recolher explorador" : "Abrir explorador"}
+              aria-expanded={explorerOpen}
+              onClick={() => setExplorerOpen(v => !v)}
+            >
+              <PanelLeft className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="h-7 w-7"
+              title={editorOpen ? "Recolher editor de código" : "Abrir editor de código"}
+              aria-label={editorOpen ? "Recolher editor de código" : "Abrir editor de código"}
+              aria-expanded={editorOpen}
+              onClick={() => setEditorOpen(v => !v)}
+            >
+              <PanelsTopLeft className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
+          <div className="ml-auto flex items-center gap-1">
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              className="h-7 w-7"
+              disabled={syncing}
+              onClick={synchronize}
+              title="Atualizar / sincronizar com o GitHub"
+              aria-label="Atualizar / sincronizar com o GitHub"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+            </Button>
+            {p?.deploy_url ? (
+              <Button
+                asChild
+                size="icon-sm"
+                variant="ghost"
+                className="h-7 w-7"
+                title={p.deploy_url}
+                aria-label="Abrir site publicado"
+              >
+                <a href={p.deploy_url} target="_blank" rel="noreferrer">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </Button>
+            ) : (
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="h-7 w-7 opacity-40"
+                disabled
+                title="Publique com Deploy para liberar o link do site"
+                aria-label="Site ainda não publicado"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <input
+              ref={zipInputRef}
+              type="file"
+              accept=".zip,application/zip,application/x-zip-compressed"
+              className="hidden"
+              onChange={handleZipUpload}
+            />
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              className="h-7 w-7"
+              disabled={uploadingZip || syncing || deploying}
+              onClick={() => zipInputRef.current?.click()}
+              title="Upload ZIP — aplicar alterações no projeto"
+              aria-label="Upload ZIP"
+            >
+              {uploadingZip ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          </div>
+        </div>
       </header>
       <div className="min-h-0 flex-1">
         {p ? <CopilotPanel key={projectId} projectId={projectId} ownerId={p.user_id} activePath={active} beforeSend={flush}
