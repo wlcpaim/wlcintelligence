@@ -4,7 +4,7 @@ import { VersionSelector } from "@/modules/versions/components/VersionSelector";
 import { customVersionId, copilotHistoryKey, useSelectedVersion, PRO_SLUG, SYSTEM_SLUG, COPILOT_199_SLUG } from "@/modules/versions/selected";
 import { supabase } from "@/integrations/supabase/client";
 import type { SystemConnection } from "@/modules/system/core/connection";
-import { ArrowUp, Check, Code2, FileCode2, Loader2, Square, X, RotateCcw, PlugZap, GitCommit, Wand2, SlidersHorizontal, Terminal, Rocket, FileText, Copy } from "lucide-react";
+import { ArrowUp, Check, Code2, FileCode2, Loader2, Square, X, RotateCcw, PlugZap, GitCommit, Wand2, SlidersHorizontal, Terminal, Rocket, FileText, Copy, Brush } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PromptInput, PromptInputFooter, PromptInputSubmit, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
 import { Markdown } from "@/components/chat/Markdown";
@@ -204,6 +204,14 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
     } finally {
       if (abort.current === controller) { setBusy(false); abort.current = null; }
     }
+  };
+
+  const clearChat = () => {
+    if (busy) return;
+    setEntries([]);
+    setError(null);
+    setConnection(null);
+    try { localStorage.removeItem(storageKey); } catch { /* ignore */ }
   };
 
   const resolve = (id: string, path: string) => setEntries(e => e.map(item => item.id === id ? { ...item, resolved: [...(item.resolved ?? []), path] } : item));
@@ -459,8 +467,8 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
     </div>
     {overlay}
     </div>
-    <div className="relative z-30 shrink-0 border-t border-border bg-background pt-3 pb-[env(safe-area-inset-bottom)]">
-      <div className="mx-auto w-full max-w-3xl px-3 pb-3">
+    <div className="relative z-30 shrink-0 border-t border-border/70 bg-background pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1.5">
+      <div className="mx-auto w-full max-w-3xl px-3 pb-1">
         {isSystem && connection && <div role="status" className="mb-2 flex min-w-0 items-center gap-2 font-mono text-xs text-success" title={`Sessão verificada em ${connection.checkedAt}; agente externo ainda não pareado`}><PlugZap className="h-3.5 w-3.5 shrink-0" /><span className="shrink-0">CANAL PRONTO</span><span className="truncate">{connection.projectName}</span></div>}
         {error && <p role="status" className="mb-2 flex items-start gap-2 text-xs text-muted-foreground"><span className="flex-1">{error}</span><Button variant="ghost" size="icon-sm" title="Dispensar aviso" aria-label="Dispensar aviso" onClick={() => setError(null)}><X /></Button></p>}
         <PromptInput
@@ -493,9 +501,21 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
             } value={text} maxLength={isSystem ? 100_000 : 100_000}
             onChange={e => autoTxt.handleChange(e.target.value, setText)}
             onPaste={e => autoTxt.handlePaste(e, text, setText)}
-            className={`min-h-[3.25rem] px-1 text-base leading-relaxed ${isSystem ? "font-mono text-sm" : ""}`} />
-          <PromptInputFooter className="items-center gap-2 px-1 pb-1 pt-0.5">
+            className={`min-h-[2.75rem] px-1 text-base leading-relaxed ${isSystem ? "font-mono text-sm" : ""}`} />
+          <PromptInputFooter className="items-center gap-1.5 px-1 pb-0.5 pt-0">
             <span className="min-w-0 flex-1"><VersionSelector /></span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+              title="Limpar chat"
+              aria-label="Limpar chat"
+              disabled={busy || entries.length === 0}
+              onClick={clearChat}
+            >
+              <Brush className="h-3.5 w-3.5" />
+            </Button>
             <PromptInputSubmit
               status={busy ? "streaming" : "ready"}
               className="size-9 shrink-0 rounded-xl"

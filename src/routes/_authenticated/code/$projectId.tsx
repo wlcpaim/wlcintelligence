@@ -368,54 +368,24 @@ function EditorPage() {
 
   return (
     <div className="flex h-full flex-col bg-[var(--code-editor)] text-foreground">
-      <header className="shrink-0 border-b border-border">
-        {/* Linha 1 — ações principais: Commit + Deploy */}
-        <div className="flex h-11 min-w-0 items-center gap-2 px-3">
-          <Button asChild variant="ghost" size="icon-sm" aria-label="Projetos" className="shrink-0">
-            <Link to="/code"><ArrowLeft /></Link>
+      <header className="shrink-0 border-b border-border bg-background">
+        <div className="flex min-h-11 min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-1.5">
+          <Button asChild variant="ghost" size="icon-sm" aria-label="Projetos" className="h-7 w-7 shrink-0">
+            <Link to="/code"><ArrowLeft className="h-4 w-4" /></Link>
           </Button>
           <Code2 className="hidden h-4 w-4 shrink-0 text-primary sm:block" />
-          <span className="min-w-0 flex-1 truncate font-mono text-xs">
+          <span className="min-w-0 max-w-[40%] truncate font-mono text-xs sm:max-w-none">
             <span className="text-muted-foreground">/</span>
             <span className="ml-1">{p?.name}</span>
             {p?.repo_full_name && (
-              <span className="ml-2 hidden items-center gap-1 text-muted-foreground sm:inline-flex">
+              <span className="ml-2 hidden items-center gap-1 text-muted-foreground lg:inline-flex">
                 <Github className="h-3 w-3" />{p.repo_full_name}:{p.branch}
               </span>
             )}
           </span>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              size="sm"
-              className="h-8 gap-1.5 px-3"
-              onClick={() => {
-                void flush()
-                  .then(() => setCommitOpen(true))
-                  .catch(() => toast.error("Salve os arquivos antes do commit."));
-              }}
-            >
-              <GitCommitHorizontal className="h-4 w-4" />
-              Commit
-              {pending.length > 0 && (
-                <span className="rounded bg-primary-foreground/20 px-1.5 text-[11px]">{pending.length}</span>
-              )}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5 px-3"
-              disabled={deploying}
-              onClick={runDeploy}
-            >
-              {deploying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-              {deploying && stage ? <span className="max-w-28 truncate">{stage}…</span> : "Deploy"}
-            </Button>
-          </div>
-        </div>
 
-        {/* Linha 2 — visualizadores + ações secundárias menores */}
-        <div className="flex h-9 min-w-0 items-center gap-1 border-t border-border/60 bg-muted/20 px-3">
-          <div className="flex items-center gap-0.5">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+            {/* Visualizadores */}
             <Button
               variant="ghost"
               size="icon-sm"
@@ -438,9 +408,10 @@ function EditorPage() {
             >
               <PanelsTopLeft className="h-3.5 w-3.5" />
             </Button>
-          </div>
 
-          <div className="ml-auto flex items-center gap-1">
+            <span className="mx-0.5 hidden h-4 w-px bg-border sm:block" aria-hidden />
+
+            {/* Secundários menores */}
             <Button
               size="icon-sm"
               variant="ghost"
@@ -453,27 +424,11 @@ function EditorPage() {
               <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
             </Button>
             {p?.deploy_url ? (
-              <Button
-                asChild
-                size="icon-sm"
-                variant="ghost"
-                className="h-7 w-7"
-                title={p.deploy_url}
-                aria-label="Abrir site publicado"
-              >
-                <a href={p.deploy_url} target="_blank" rel="noreferrer">
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
+              <Button asChild size="icon-sm" variant="ghost" className="h-7 w-7" title={p.deploy_url} aria-label="Abrir site publicado">
+                <a href={p.deploy_url} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /></a>
               </Button>
             ) : (
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                className="h-7 w-7 opacity-40"
-                disabled
-                title="Publique com Deploy para liberar o link do site"
-                aria-label="Site ainda não publicado"
-              >
+              <Button size="icon-sm" variant="ghost" className="h-7 w-7 opacity-40" disabled title="Publique com Deploy para liberar o link do site" aria-label="Site ainda não publicado">
                 <ExternalLink className="h-3.5 w-3.5" />
               </Button>
             )}
@@ -493,11 +448,30 @@ function EditorPage() {
               title="Upload ZIP — aplicar alterações no projeto"
               aria-label="Upload ZIP"
             >
-              {uploadingZip ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Upload className="h-3.5 w-3.5" />
+              {uploadingZip ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+            </Button>
+
+            <span className="mx-0.5 hidden h-4 w-px bg-border sm:block" aria-hidden />
+
+            {/* Primários */}
+            <Button
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs"
+              onClick={() => {
+                void flush()
+                  .then(() => setCommitOpen(true))
+                  .catch(() => toast.error("Salve os arquivos antes do commit."));
+              }}
+            >
+              <GitCommitHorizontal className="h-3.5 w-3.5" />
+              Commit
+              {pending.length > 0 && (
+                <span className="rounded bg-primary-foreground/20 px-1 text-[10px]">{pending.length}</span>
               )}
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 gap-1.5 px-2.5 text-xs" disabled={deploying} onClick={runDeploy}>
+              {deploying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
+              {deploying && stage ? <span className="max-w-24 truncate">{stage}…</span> : "Deploy"}
             </Button>
           </div>
         </div>

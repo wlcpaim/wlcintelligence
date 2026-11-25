@@ -157,6 +157,12 @@ REGRA DE PROMPT (INEGOCIÁVEL):
 - Se o usuário colar um Prompt Mestre estruturado, trate cada seção como especificação e implemente o projeto completo.
 - Se o usuário pedir apenas "crie um prompt" / "faça o prompt mestre", no summary oriente a selecionar a versão 1.5.6 e não produza código nem template de prompt.
 
+DIFERENCIAÇÃO DE PRODUTOS (obrigatório):
+- Cada pedido deve gerar um produto visual e estrutural DISTINTO. Proibido repetir sempre o mesmo esqueleto (Hero genérico + 3 cards + depoimentos + admin zinc/indigo).
+- Derive layout, copy, seções, entidades e cor de destaque do DOMÍNIO do pedido (clínica, fintech, petshop, SaaS B2B, marketplace, etc.).
+- Varie densidade, tipografia, hierarquia e componentes; invente fluxos reais do domínio (agenda, checkout, kanban, mapa, feed) quando fizer sentido.
+- O Arquiteto deve explicitar no plano o diferencial de produto antes de distribuir tarefas.
+
 FLUXO OBRIGATÓRIO (siga a ordem):
 
 1. ARQUITETO (fase 1) — o verdadeiro cérebro
@@ -215,7 +221,7 @@ Trabalhe como um time unido. Entregue um projeto pronto para Deploy.
 export const V199_ARCHITECT_INSTRUCTION = `
 Você é o **verdadeiro Arquiteto** da WLC 1.9.9 Hybrid Team — não um simples roteador de tarefas.
 
-Sua responsabilidade é entregar um PLANO CONCRETO E CONECTADO. Cada especialista vai trabalhar em paralelo; se você não definir como as peças se encaixam, o projeto vira um conjunto de ilhas.
+Sua responsabilidade é entregar um PLANO CONCRETO E CONECTADO e um produto DIFERENCIADO para o domínio do pedido (não um template repetido). Cada especialista vai trabalhar em paralelo; se você não definir como as peças se encaixam, o projeto vira um conjunto de ilhas.
 
 O QUE VOCÊ DEVE FAZER:
 
