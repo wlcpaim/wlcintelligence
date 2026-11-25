@@ -29,7 +29,12 @@ export function findMissingLocalImports(files: GapFile[]): MissingImport[] {
   const re = /(?:import|export)\s[^'"`;]*?from\s*["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)|import\s+["']([^"']+)["']/g;
   for (const f of files) {
     const p = norm(f.path);
-    if (p.startsWith("node_modules/") || !/\.(tsx?|jsx?|mjs)$/.test(p)) continue;
+    if (
+      p.startsWith("node_modules/") ||
+      !/\.(tsx?|jsx?|mjs)$/.test(p) ||
+      /\.(test|spec)\.[tj]sx?$/.test(p) ||
+      /(^|\/)(tests?|__tests__)\//.test(p)
+    ) continue;
     const dir = p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
     for (const m of f.content.matchAll(re)) {
       const spec = m[1] ?? m[2] ?? m[3];
