@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import { FolderOpen, Pencil, Search, Rocket, Terminal } from "lucide-react";
 import { COMMAND_CATALOG, type CommandCatalogItem } from "../core/cognitive";
 
@@ -39,12 +40,11 @@ export function SystemCommandCard({ onSelectCommand }: Props) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {CATEGORIES.map((cat) => {
-          const Icon = cat.icon;
           const items = COMMAND_CATALOG.filter((c) => c.category === cat.id);
           return (
             <div key={cat.id} className="space-y-2">
               <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                <Icon className="h-3.5 w-3.5" />
+                {createElement(cat.icon, { className: "h-3.5 w-3.5" })}
                 {cat.title}
               </div>
               <div className="flex flex-wrap gap-1.5">

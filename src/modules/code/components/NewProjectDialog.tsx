@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, createElement } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -76,16 +76,16 @@ export function NewProjectDialog({ open, onOpenChange }: { open: boolean; onOpen
 
   const chatRepos = (chats.data ?? []).map(c => ({ c, repo: typeof window !== "undefined" ? localStorage.getItem(`wlc.repo.${c.id}`) : null }));
   const Back = () => <Button variant="ghost" size="sm" className="-ml-2 mb-2 w-fit" onClick={() => setStep(step.startsWith("git-") ? "git" : "menu")} disabled={busy}><ArrowLeft />Voltar</Button>;
-  const Option = ({ icon: Icon, title, desc, onClick }: { icon: typeof Github; title: string; desc: string; onClick: () => void }) => (
+  const Option = ({ icon, title, desc, onClick }: { icon: typeof Github; title: string; desc: string; onClick: () => void }) => (
     <button onClick={onClick} className="flex items-start gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary/60 hover:bg-accent">
-      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+      {createElement(icon, { className: "mt-0.5 h-5 w-5 shrink-0 text-primary" })}
       <span><span className="block font-medium">{title}</span><span className="text-sm text-muted-foreground">{desc}</span></span>
     </button>
   );
   const Visibility = () => (
     <div className="grid grid-cols-2 gap-2">
       {[{ v: true, l: "Privado", i: Lock }, { v: false, l: "Público", i: Globe }].map(o => (
-        <Button key={o.l} type="button" variant={priv === o.v ? "default" : "outline"} onClick={() => setPriv(o.v)}><o.i />{o.l}</Button>
+        <Button key={o.l} type="button" variant={priv === o.v ? "default" : "outline"} onClick={() => setPriv(o.v)}>{createElement(o.i)}{o.l}</Button>
       ))}
     </div>
   );

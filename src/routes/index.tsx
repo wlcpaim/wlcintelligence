@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, createElement } from "react";
 import { toast } from "sonner";
 import { Code2, Mail, ShieldCheck, Sparkles, Zap } from "lucide-react";
 import { lovable } from "@/integrations/lovable";
@@ -155,7 +155,7 @@ function Landing() {
             className="group p-6 rounded-2xl border border-zinc-800/70 bg-zinc-900/20 hover:bg-zinc-900/40 hover:border-zinc-700 transition-all duration-300"
           >
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/60 text-zinc-300 group-hover:text-white transition-colors">
-              <item.icon className="h-5 w-5" />
+              {createElement(item.icon, { className: "h-5 w-5" })}
             </div>
             <h3 className="text-white font-medium mb-2 tracking-tight">{item.title}</h3>
             <p className="text-zinc-400 text-sm leading-relaxed">{item.desc}</p>

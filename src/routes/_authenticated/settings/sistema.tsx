@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { BrainCircuit, MessageSquare, Github, KeyRound, ShieldCheck, History } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -65,8 +66,8 @@ function SystemPage() {
           <TabsTrigger value="instruction" className="gap-2"><MessageSquare className="h-4 w-4" />Instrução</TabsTrigger>
         </TabsList>
         <TabsContent value="rules"><Accordion type="multiple" defaultValue={["conversation"]}>
-          {rules.map(({ id, icon: Icon, title, details }) => <AccordionItem key={id} value={id}>
-            <AccordionTrigger className="gap-3 text-left"><span className="flex items-center gap-3"><Icon className="h-4 w-4 shrink-0 text-primary" />{title}</span></AccordionTrigger>
+          {rules.map(({ id, icon, title, details }) => <AccordionItem key={id} value={id}>
+            <AccordionTrigger className="gap-3 text-left"><span className="flex items-center gap-3">{createElement(icon, { className: "h-4 w-4 shrink-0 text-primary" })}{title}</span></AccordionTrigger>
             <AccordionContent><ul className="space-y-3 pl-7 text-sm leading-relaxed text-muted-foreground">{details.map(text => <li key={text} className="list-disc">{text}</li>)}</ul></AccordionContent>
           </AccordionItem>)}
         </Accordion></TabsContent>
