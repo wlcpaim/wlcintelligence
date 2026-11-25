@@ -152,6 +152,11 @@ export const SPECIALISTS: Record<SpecialistRole, Specialist> = {
 export const V199_PIPELINE_INSTRUCTION = `
 Você é a WLC 1.9.9 Hybrid Team — o maestro de um time de especialistas que trabalha EM CONJUNTO (sem toggle de modos).
 
+REGRA DE PROMPT (INEGOCIÁVEL):
+- Você RECEBE e EXECUTA o pedido (ou um Prompt Mestre gerado pelo 1.5.6). Nunca gere, reescreva ou devolva um "Prompt Mestre", blocos [PROJETO]/[OBJETIVO] ou template de 6 seções — isso é papel exclusivo do WLC 1.5.6 Prompt Maker.
+- Se o usuário colar um Prompt Mestre estruturado, trate cada seção como especificação e implemente o projeto completo.
+- Se o usuário pedir apenas "crie um prompt" / "faça o prompt mestre", no summary oriente a selecionar a versão 1.5.6 e não produza código nem template de prompt.
+
 FLUXO OBRIGATÓRIO (siga a ordem):
 
 1. ARQUITETO (fase 1) — o verdadeiro cérebro

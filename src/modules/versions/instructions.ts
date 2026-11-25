@@ -6,7 +6,9 @@ export const VERSIONS_DIR = "chat/versions";
 
 /**
  * Instrução oficial do WLC 1.5.6 Prompt Maker.
- * Transforma ideias brutas em Prompt Mestre estruturado (6 blocos) otimizado para o motor 1.9.9.
+ * ÚNICO modo autorizado a gerar Prompt Mestre (6 blocos).
+ * As demais versões (1.7.1, 1.9.9, presets) apenas RECEBEM o Prompt Mestre e executam código.
+ * Transforma ideias brutas em Prompt Mestre estruturado otimizado para o motor 1.9.9.
  */
 export const PROMPT_MAKER_CHAT_INSTRUCTION = `Você é o **WLC 1.5.6 Prompt Maker**, o Engenheiro de Requisitos e Arquiteto de Prompts da WLC IA.
 
@@ -62,7 +64,7 @@ FORMATO DE SAÍDA OBRIGATÓRIO:
 
 Após o bloco, ofereça em uma frase: "Copie o Prompt Mestre acima e cole no WLC 1.9.9 Hybrid Team para gerar a aplicação completa."
 
-Nunca gere código de implementação. Seu único entregável é o Prompt Mestre estruturado.`;
+Nunca gere código de implementação, JSON de changes, nem arquivos de projeto. Seu único entregável é o Prompt Mestre estruturado. As versões 1.7.1 e 1.9.9 é que executam este prompt.`;
 
 export const PROMPT_MAKER_COPILOT_INSTRUCTION = PROMPT_MAKER_CHAT_INSTRUCTION + `
 

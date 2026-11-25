@@ -14,7 +14,7 @@ import { revealKey } from "@/modules/integrations/gemini/services/keys.server";
 import { shouldGenerateTitle } from "@/services/conversations";
 import { agentsHeader, orchestratorInstruction, routeMessage } from "@/modules/orchestrator/orchestrator";
 import { runBots } from "@/modules/orchestrator/runner.server";
-import { chatInstructionFor, type VersionRule } from "@/modules/versions/instructions";
+import { chatInstructionFor, PROMPT_MAKER_CHAT_INSTRUCTION, type VersionRule } from "@/modules/versions/instructions";
 import { V199_PIPELINE_INSTRUCTION } from "@/modules/v199/identity";
 import { listKeys } from "@/modules/integrations/gemini/services/keys.server";
 import { checkDualKeys } from "@/modules/v199/core/keys";
@@ -77,6 +77,9 @@ export const Route = createFileRoute("/api/chat")({
         if (versionId && !proPlan && mode !== "v199") {
           const { data: version } = await supabase.from("chat_versions").select("name,chat_instruction,rules").eq("id", versionId).eq("user_id", userId).maybeSingle();
           if (version) versionInstruction = chatInstructionFor({ ...version, rules: version.rules as unknown as VersionRule[] });
+        } else if (!proPlan && mode === "classic" && !versionId) {
+          // WLC 1.5.6 Prompt Maker — único modo que GERA Prompt Mestre (não executa código)
+          versionInstruction = PROMPT_MAKER_CHAT_INSTRUCTION;
         }
 
         // WLC 1.9.9 Hybrid Team — pipeline único (Arquiteto → especialistas → Análise → Diagnóstico)
