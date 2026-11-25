@@ -57,7 +57,6 @@ export function NewProjectDialog({ open, onOpenChange }: { open: boolean; onOpen
   const onZip = (file: File) => run(async () => {
     const zip = await JSZip.loadAsync(file);
     const entries = Object.values(zip.files).filter(f => !f.dir && !/(^|\/)(node_modules|\.git|dist|build)\//.test(f.name) && !/__MACOSX/.test(f.name));
-    // Remove a pasta raiz única, comum em ZIPs exportados.
     const roots = new Set(entries.map(e => e.name.split("/")[0]));
     const strip = roots.size === 1 && entries.every(e => e.name.includes("/"));
     const files: { path: string; content: string }[] = [];
@@ -75,17 +74,26 @@ export function NewProjectDialog({ open, onOpenChange }: { open: boolean; onOpen
   });
 
   const chatRepos = (chats.data ?? []).map(c => ({ c, repo: typeof window !== "undefined" ? localStorage.getItem(`wlc.repo.${c.id}`) : null }));
-  const Back = () => <Button variant="ghost" size="sm" className="-ml-2 mb-2 w-fit" onClick={() => setStep(step.startsWith("git-") ? "git" : "menu")} disabled={busy}><ArrowLeft />Voltar</Button>;
-  const Option = ({ icon, title, desc, onClick }: { icon: typeof Github; title: string; desc: string; onClick: () => void }) => (
-    <button onClick={onClick} className="flex items-start gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary/60 hover:bg-accent">
+
+  const renderBack = () => (
+    <Button variant="ghost" size="sm" className="-ml-2 mb-2 w-fit" onClick={() => setStep(step.startsWith("git-") ? "git" : "menu")} disabled={busy}>
+      <ArrowLeft />Voltar
+    </Button>
+  );
+
+  const renderOption = (icon: typeof Github, title: string, desc: string, onClick: () => void) => (
+    <button key={title} onClick={onClick} className="flex items-start gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary/60 hover:bg-accent">
       {createElement(icon, { className: "mt-0.5 h-5 w-5 shrink-0 text-primary" })}
       <span><span className="block font-medium">{title}</span><span className="text-sm text-muted-foreground">{desc}</span></span>
     </button>
   );
-  const Visibility = () => (
+
+  const renderVisibility = () => (
     <div className="grid grid-cols-2 gap-2">
       {[{ v: true, l: "Privado", i: Lock }, { v: false, l: "Público", i: Globe }].map(o => (
-        <Button key={o.l} type="button" variant={priv === o.v ? "default" : "outline"} onClick={() => setPriv(o.v)}>{createElement(o.i)}{o.l}</Button>
+        <Button key={o.l} type="button" variant={priv === o.v ? "default" : "outline"} onClick={() => setPriv(o.v)}>
+          {createElement(o.i)}{o.l}
+        </Button>
       ))}
     </div>
   );
@@ -97,58 +105,80 @@ export function NewProjectDialog({ open, onOpenChange }: { open: boolean; onOpen
           <DialogTitle className="font-mono">Novo projeto</DialogTitle>
           <DialogDescription>Escolha como começar.</DialogDescription>
         </DialogHeader>
-        {step === "menu" && <div className="grid gap-2">
-          <Option icon={FileCode2} title="Empty" desc="Projeto em branco, sem arquivos." onClick={() => setStep("empty")} />
-          <Option icon={MessagesSquare} title="Chats" desc="Importar o repositório aberto em um chat." onClick={() => setStep("chat")} />
-          <Option icon={Github} title="Git" desc="Criar repositório novo ou abrir um existente." onClick={() => setStep("git")} />
-          <Option icon={FileArchive} title="Zip" desc="Enviar um arquivo .zip do seu projeto." onClick={() => setStep("zip")} />
-        </div>}
-        {step === "empty" && <form className="grid gap-3" onSubmit={e => { e.preventDefault(); if (name.trim()) run(() => createLocal(name.trim(), "empty", [])); }}>
-          <Back /><Label htmlFor="pn">Nome do projeto</Label>
-          <Input id="pn" value={name} onChange={e => setName(e.target.value)} placeholder="meu-projeto" autoFocus maxLength={100} />
-          <Button disabled={busy || !name.trim()}>{busy && <Loader2 className="animate-spin" />}Criar projeto</Button>
-        </form>}
-        {step === "chat" && <div className="grid gap-2"><Back />
-          {chats.isLoading && <Loader2 className="mx-auto animate-spin" />}
-          {chatRepos.filter(x => x.repo).length === 0 && !chats.isLoading && <p className="text-sm text-muted-foreground">Nenhum chat com repositório vinculado neste aparelho.</p>}
-          <div className="max-h-80 space-y-1 overflow-y-auto">
-            {chatRepos.filter(x => x.repo).map(({ c, repo }) => (
-              <button key={c.id} disabled={busy} onClick={() => fromRepo(repo!, "chat")} className="flex w-full flex-col rounded-md border border-border px-3 py-2 text-left hover:bg-accent disabled:opacity-50">
-                <span className="truncate text-sm font-medium">{c.title}</span><span className="font-mono text-xs text-muted-foreground">{repo}</span>
-              </button>))}
+        {step === "menu" && (
+          <div className="grid gap-2">
+            {renderOption(FileCode2, "Empty", "Projeto em branco, sem arquivos.", () => setStep("empty"))}
+            {renderOption(MessagesSquare, "Chats", "Importar o repositório aberto em um chat.", () => setStep("chat"))}
+            {renderOption(Github, "Git", "Criar repositório novo ou abrir um existente.", () => setStep("git"))}
+            {renderOption(FileArchive, "Zip", "Enviar um arquivo .zip do seu projeto.", () => setStep("zip"))}
           </div>
-          {busy && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Importando arquivos…</p>}
-        </div>}
-        {step === "git" && <div className="grid gap-2"><Back />
-          <Option icon={Github} title="Criar repositório" desc="Sempre vazio, sem README nem presets." onClick={() => setStep("git-new")} />
-          <Option icon={FileCode2} title="Repositório existente" desc="Abre a estrutura completa de arquivos." onClick={() => setStep("git-existing")} />
-        </div>}
-        {step === "git-new" && <form className="grid gap-3" onSubmit={e => { e.preventDefault(); run(async () => { const r = await createRepo({ data: { name: name.trim(), private: priv } }); if (!r.ok) throw new Error(r.error); return r.id; }); }}>
-          <Back /><Label htmlFor="rn">Nome do repositório</Label>
-          <Input id="rn" value={name} onChange={e => setName(e.target.value.replace(/[^\w.-]/g, "-"))} placeholder="novo-projeto" autoFocus maxLength={100} />
-          <Visibility />
-          <Button disabled={busy || !name.trim()}>{busy && <Loader2 className="animate-spin" />}Criar repositório vazio</Button>
-        </form>}
-        {step === "git-existing" && <div className="grid gap-2"><Back />
-          <Input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Buscar repositório…" />
-          {repos.isLoading && <Loader2 className="mx-auto animate-spin" />}
-          {repos.isError && <p className="text-sm text-destructive">Conecte o GitHub em Configurações → API.</p>}
-          <div className="max-h-72 space-y-1 overflow-y-auto">
-            {(repos.data ?? []).filter(r => r.full_name.toLowerCase().includes(filter.toLowerCase())).map(r => (
-              <button key={r.id} disabled={busy} onClick={() => fromRepo(r.full_name, "git")} className="flex w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-left hover:bg-accent disabled:opacity-50">
-                {r.private ? <Lock className="h-3.5 w-3.5 text-muted-foreground" /> : <Globe className="h-3.5 w-3.5 text-muted-foreground" />}
-                <span className="truncate font-mono text-sm">{r.full_name}</span>
-              </button>))}
+        )}
+        {step === "empty" && (
+          <form className="grid gap-3" onSubmit={e => { e.preventDefault(); if (name.trim()) run(() => createLocal(name.trim(), "empty", [])); }}>
+            {renderBack()}
+            <Label htmlFor="pn">Nome do projeto</Label>
+            <Input id="pn" value={name} onChange={e => setName(e.target.value)} placeholder="meu-projeto" autoFocus maxLength={100} />
+            <Button disabled={busy || !name.trim()}>{busy && <Loader2 className="animate-spin" />}Criar projeto</Button>
+          </form>
+        )}
+        {step === "chat" && (
+          <div className="grid gap-2">
+            {renderBack()}
+            {chats.isLoading && <Loader2 className="mx-auto animate-spin" />}
+            {chatRepos.filter(x => x.repo).length === 0 && !chats.isLoading && <p className="text-sm text-muted-foreground">Nenhum chat com repositório vinculado neste aparelho.</p>}
+            <div className="max-h-80 space-y-1 overflow-y-auto">
+              {chatRepos.filter(x => x.repo).map(({ c, repo }) => (
+                <button key={c.id} disabled={busy} onClick={() => fromRepo(repo!, "chat")} className="flex w-full flex-col rounded-md border border-border px-3 py-2 text-left hover:bg-accent disabled:opacity-50">
+                  <span className="truncate text-sm font-medium">{c.title}</span><span className="font-mono text-xs text-muted-foreground">{repo}</span>
+                </button>
+              ))}
+            </div>
+            {busy && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Importando arquivos…</p>}
           </div>
-          {busy && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Importando arquivos…</p>}
-        </div>}
-        {step === "zip" && <div className="grid gap-3"><Back />
-          <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed border-border p-8 text-center hover:border-primary/60">
-            {busy ? <Loader2 className="animate-spin" /> : <FileArchive className="h-8 w-8 text-primary" />}
-            <span className="text-sm">{busy ? "Lendo arquivos…" : "Clique para escolher o .zip"}</span>
-            <input type="file" accept=".zip" className="sr-only" disabled={busy} onChange={e => { const f = e.target.files?.[0]; if (f) onZip(f); }} />
-          </label>
-        </div>}
+        )}
+        {step === "git" && (
+          <div className="grid gap-2">
+            {renderBack()}
+            {renderOption(Github, "Criar repositório", "Sempre vazio, sem README nem presets.", () => setStep("git-new"))}
+            {renderOption(FileCode2, "Repositório existente", "Abre a estrutura completa de arquivos.", () => setStep("git-existing"))}
+          </div>
+        )}
+        {step === "git-new" && (
+          <form className="grid gap-3" onSubmit={e => { e.preventDefault(); run(async () => { const r = await createRepo({ data: { name: name.trim(), private: priv } }); if (!r.ok) throw new Error(r.error); return r.id; }); }}>
+            {renderBack()}
+            <Label htmlFor="rn">Nome do repositório</Label>
+            <Input id="rn" value={name} onChange={e => setName(e.target.value.replace(/[^\w.-]/g, "-"))} placeholder="novo-projeto" autoFocus maxLength={100} />
+            {renderVisibility()}
+            <Button disabled={busy || !name.trim()}>{busy && <Loader2 className="animate-spin" />}Criar repositório vazio</Button>
+          </form>
+        )}
+        {step === "git-existing" && (
+          <div className="grid gap-2">
+            {renderBack()}
+            <Input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Buscar repositório…" />
+            {repos.isLoading && <Loader2 className="mx-auto animate-spin" />}
+            {repos.isError && <p className="text-sm text-destructive">Conecte o GitHub em Configurações → API.</p>}
+            <div className="max-h-72 space-y-1 overflow-y-auto">
+              {(repos.data ?? []).filter(r => r.full_name.toLowerCase().includes(filter.toLowerCase())).map(r => (
+                <button key={r.id} disabled={busy} onClick={() => fromRepo(r.full_name, "git")} className="flex w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-left hover:bg-accent disabled:opacity-50">
+                  {r.private ? <Lock className="h-3.5 w-3.5 text-muted-foreground" /> : <Globe className="h-3.5 w-3.5 text-muted-foreground" />}
+                  <span className="truncate font-mono text-sm">{r.full_name}</span>
+                </button>
+              ))}
+            </div>
+            {busy && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Importando arquivos…</p>}
+          </div>
+        )}
+        {step === "zip" && (
+          <div className="grid gap-3">
+            {renderBack()}
+            <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed border-border p-8 text-center hover:border-primary/60">
+              {busy ? <Loader2 className="animate-spin" /> : <FileArchive className="h-8 w-8 text-primary" />}
+              <span className="text-sm">{busy ? "Lendo arquivos…" : "Clique para escolher o .zip"}</span>
+              <input type="file" accept=".zip" className="sr-only" disabled={busy} onChange={e => { const f = e.target.files?.[0]; if (f) onZip(f); }} />
+            </label>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
