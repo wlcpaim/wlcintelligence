@@ -1,12 +1,20 @@
 import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
+import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();
   } catch (error) {
-    if (error != null && typeof error === "object" && "statusCode" in error) {
+    // Router redirects / notFound throw Response-like objects (status, not statusCode);
+    // let the framework handle them instead of rendering the emergency error page.
+    if (error instanceof Response) throw error;
+    if (
+      error != null &&
+      typeof error === "object" &&
+      ("statusCode" in error || "isNotFound" in error || ("status" in error && "options" in error))
+    ) {
       throw error;
     }
     console.error(error);
@@ -31,5 +39,6 @@ const csrfMiddleware = createCsrfMiddleware({
 // user-managed Supabase project is connected, no middleware here sets Authorization, and the
 // project did not intentionally replace it.
 export const startInstance = createStart(() => ({
+  functionMiddleware: [attachSupabaseAuth],
   requestMiddleware: [errorMiddleware, csrfMiddleware],
 }));

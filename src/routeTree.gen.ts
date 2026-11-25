@@ -10,33 +10,337 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
+import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
+import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as AuthenticatedChatIndexRouteImport } from './routes/_authenticated/chat/index'
+import { Route as AuthenticatedChatConversationIdRouteImport } from './routes/_authenticated/chat/$conversationId'
+import { Route as AuthenticatedCodeIndexRouteImport } from './routes/_authenticated/code/index'
+import { Route as AuthenticatedCodeProjectIdRouteImport } from './routes/_authenticated/code/$projectId'
+import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
+import { Route as AuthenticatedSettingsBackupRouteImport } from './routes/_authenticated/settings/backup'
+import { Route as AuthenticatedSettingsCloudflareRouteImport } from './routes/_authenticated/settings/cloudflare'
+import { Route as AuthenticatedSettingsDatabaseRouteImport } from './routes/_authenticated/settings/database'
+import { Route as AuthenticatedSettingsDeployRouteImport } from './routes/_authenticated/settings/deploy'
+import { Route as AuthenticatedSettingsGeminiRouteImport } from './routes/_authenticated/settings/gemini'
+import { Route as AuthenticatedSettingsGithubRouteImport } from './routes/_authenticated/settings/github'
+import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
+import { Route as AuthenticatedSettingsRepositoriesRouteImport } from './routes/_authenticated/settings/repositories'
+import { Route as AuthenticatedSettingsSistemaRouteImport } from './routes/_authenticated/settings/sistema'
+import { Route as AuthenticatedWlciaIndexRouteImport } from './routes/_authenticated/wlcia/index'
+import { Route as AuthenticatedWlciaVersionIdRouteImport } from './routes/_authenticated/wlcia/$versionId'
+import { Route as ApiSystemChatRouteImport } from './routes/api/system/chat'
+import { Route as ApiSystemCommandRouteImport } from './routes/api/system/command'
+import { Route as ApiPublicJobsGeminiRecheckRouteImport } from './routes/api/public/jobs/gemini-recheck'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSettingsRouteRoute =
+  AuthenticatedSettingsRouteRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedChatIndexRoute = AuthenticatedChatIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedChatRoute,
+} as any)
+const AuthenticatedChatConversationIdRoute =
+  AuthenticatedChatConversationIdRouteImport.update({
+    id: '/$conversationId',
+    path: '/$conversationId',
+    getParentRoute: () => AuthenticatedChatRoute,
+  } as any)
+const AuthenticatedCodeIndexRoute = AuthenticatedCodeIndexRouteImport.update({
+  id: '/code/',
+  path: '/code/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCodeProjectIdRoute =
+  AuthenticatedCodeProjectIdRouteImport.update({
+    id: '/code/$projectId',
+    path: '/code/$projectId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSettingsIndexRoute =
+  AuthenticatedSettingsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsBackupRoute =
+  AuthenticatedSettingsBackupRouteImport.update({
+    id: '/backup',
+    path: '/backup',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsCloudflareRoute =
+  AuthenticatedSettingsCloudflareRouteImport.update({
+    id: '/cloudflare',
+    path: '/cloudflare',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsDatabaseRoute =
+  AuthenticatedSettingsDatabaseRouteImport.update({
+    id: '/database',
+    path: '/database',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsDeployRoute =
+  AuthenticatedSettingsDeployRouteImport.update({
+    id: '/deploy',
+    path: '/deploy',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsGeminiRoute =
+  AuthenticatedSettingsGeminiRouteImport.update({
+    id: '/gemini',
+    path: '/gemini',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsGithubRoute =
+  AuthenticatedSettingsGithubRouteImport.update({
+    id: '/github',
+    path: '/github',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsProfileRoute =
+  AuthenticatedSettingsProfileRouteImport.update({
+    id: '/profile',
+    path: '/profile',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsRepositoriesRoute =
+  AuthenticatedSettingsRepositoriesRouteImport.update({
+    id: '/repositories',
+    path: '/repositories',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsSistemaRoute =
+  AuthenticatedSettingsSistemaRouteImport.update({
+    id: '/sistema',
+    path: '/sistema',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedWlciaIndexRoute = AuthenticatedWlciaIndexRouteImport.update({
+  id: '/wlcia/',
+  path: '/wlcia/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedWlciaVersionIdRoute =
+  AuthenticatedWlciaVersionIdRouteImport.update({
+    id: '/wlcia/$versionId',
+    path: '/wlcia/$versionId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const ApiSystemChatRoute = ApiSystemChatRouteImport.update({
+  id: '/api/system/chat',
+  path: '/api/system/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSystemCommandRoute = ApiSystemCommandRouteImport.update({
+  id: '/api/system/command',
+  path: '/api/system/command',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicJobsGeminiRecheckRoute =
+  ApiPublicJobsGeminiRecheckRouteImport.update({
+    id: '/api/public/jobs/gemini-recheck',
+    path: '/api/public/jobs/gemini-recheck',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
+  '/chat': typeof AuthenticatedChatRouteWithChildren
+  '/api/chat': typeof ApiChatRoute
+  '/chat/$conversationId': typeof AuthenticatedChatConversationIdRoute
+  '/code/$projectId': typeof AuthenticatedCodeProjectIdRoute
+  '/settings/backup': typeof AuthenticatedSettingsBackupRoute
+  '/settings/cloudflare': typeof AuthenticatedSettingsCloudflareRoute
+  '/settings/database': typeof AuthenticatedSettingsDatabaseRoute
+  '/settings/deploy': typeof AuthenticatedSettingsDeployRoute
+  '/settings/gemini': typeof AuthenticatedSettingsGeminiRoute
+  '/settings/github': typeof AuthenticatedSettingsGithubRoute
+  '/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/settings/repositories': typeof AuthenticatedSettingsRepositoriesRoute
+  '/settings/sistema': typeof AuthenticatedSettingsSistemaRoute
+  '/wlcia/$versionId': typeof AuthenticatedWlciaVersionIdRoute
+  '/api/system/chat': typeof ApiSystemChatRoute
+  '/api/system/command': typeof ApiSystemCommandRoute
+  '/chat/': typeof AuthenticatedChatIndexRoute
+  '/code/': typeof AuthenticatedCodeIndexRoute
+  '/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/wlcia/': typeof AuthenticatedWlciaIndexRoute
+  '/api/public/jobs/gemini-recheck': typeof ApiPublicJobsGeminiRecheckRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/api/chat': typeof ApiChatRoute
+  '/chat/$conversationId': typeof AuthenticatedChatConversationIdRoute
+  '/code/$projectId': typeof AuthenticatedCodeProjectIdRoute
+  '/settings/backup': typeof AuthenticatedSettingsBackupRoute
+  '/settings/cloudflare': typeof AuthenticatedSettingsCloudflareRoute
+  '/settings/database': typeof AuthenticatedSettingsDatabaseRoute
+  '/settings/deploy': typeof AuthenticatedSettingsDeployRoute
+  '/settings/gemini': typeof AuthenticatedSettingsGeminiRoute
+  '/settings/github': typeof AuthenticatedSettingsGithubRoute
+  '/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/settings/repositories': typeof AuthenticatedSettingsRepositoriesRoute
+  '/settings/sistema': typeof AuthenticatedSettingsSistemaRoute
+  '/wlcia/$versionId': typeof AuthenticatedWlciaVersionIdRoute
+  '/api/system/chat': typeof ApiSystemChatRoute
+  '/api/system/command': typeof ApiSystemCommandRoute
+  '/chat': typeof AuthenticatedChatIndexRoute
+  '/code': typeof AuthenticatedCodeIndexRoute
+  '/settings': typeof AuthenticatedSettingsIndexRoute
+  '/wlcia': typeof AuthenticatedWlciaIndexRoute
+  '/api/public/jobs/gemini-recheck': typeof ApiPublicJobsGeminiRecheckRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
+  '/_authenticated/chat': typeof AuthenticatedChatRouteWithChildren
+  '/api/chat': typeof ApiChatRoute
+  '/_authenticated/chat/$conversationId': typeof AuthenticatedChatConversationIdRoute
+  '/_authenticated/code/$projectId': typeof AuthenticatedCodeProjectIdRoute
+  '/_authenticated/settings/backup': typeof AuthenticatedSettingsBackupRoute
+  '/_authenticated/settings/cloudflare': typeof AuthenticatedSettingsCloudflareRoute
+  '/_authenticated/settings/database': typeof AuthenticatedSettingsDatabaseRoute
+  '/_authenticated/settings/deploy': typeof AuthenticatedSettingsDeployRoute
+  '/_authenticated/settings/gemini': typeof AuthenticatedSettingsGeminiRoute
+  '/_authenticated/settings/github': typeof AuthenticatedSettingsGithubRoute
+  '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/_authenticated/settings/repositories': typeof AuthenticatedSettingsRepositoriesRoute
+  '/_authenticated/settings/sistema': typeof AuthenticatedSettingsSistemaRoute
+  '/_authenticated/wlcia/$versionId': typeof AuthenticatedWlciaVersionIdRoute
+  '/api/system/chat': typeof ApiSystemChatRoute
+  '/api/system/command': typeof ApiSystemCommandRoute
+  '/_authenticated/chat/': typeof AuthenticatedChatIndexRoute
+  '/_authenticated/code/': typeof AuthenticatedCodeIndexRoute
+  '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/_authenticated/wlcia/': typeof AuthenticatedWlciaIndexRoute
+  '/api/public/jobs/gemini-recheck': typeof ApiPublicJobsGeminiRecheckRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/reset-password'
+    | '/settings'
+    | '/chat'
+    | '/api/chat'
+    | '/chat/$conversationId'
+    | '/code/$projectId'
+    | '/settings/backup'
+    | '/settings/cloudflare'
+    | '/settings/database'
+    | '/settings/deploy'
+    | '/settings/gemini'
+    | '/settings/github'
+    | '/settings/profile'
+    | '/settings/repositories'
+    | '/settings/sistema'
+    | '/wlcia/$versionId'
+    | '/api/system/chat'
+    | '/api/system/command'
+    | '/chat/'
+    | '/code/'
+    | '/settings/'
+    | '/wlcia/'
+    | '/api/public/jobs/gemini-recheck'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/reset-password'
+    | '/api/chat'
+    | '/chat/$conversationId'
+    | '/code/$projectId'
+    | '/settings/backup'
+    | '/settings/cloudflare'
+    | '/settings/database'
+    | '/settings/deploy'
+    | '/settings/gemini'
+    | '/settings/github'
+    | '/settings/profile'
+    | '/settings/repositories'
+    | '/settings/sistema'
+    | '/wlcia/$versionId'
+    | '/api/system/chat'
+    | '/api/system/command'
+    | '/chat'
+    | '/code'
+    | '/settings'
+    | '/wlcia'
+    | '/api/public/jobs/gemini-recheck'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/reset-password'
+    | '/_authenticated/settings'
+    | '/_authenticated/chat'
+    | '/api/chat'
+    | '/_authenticated/chat/$conversationId'
+    | '/_authenticated/code/$projectId'
+    | '/_authenticated/settings/backup'
+    | '/_authenticated/settings/cloudflare'
+    | '/_authenticated/settings/database'
+    | '/_authenticated/settings/deploy'
+    | '/_authenticated/settings/gemini'
+    | '/_authenticated/settings/github'
+    | '/_authenticated/settings/profile'
+    | '/_authenticated/settings/repositories'
+    | '/_authenticated/settings/sistema'
+    | '/_authenticated/wlcia/$versionId'
+    | '/api/system/chat'
+    | '/api/system/command'
+    | '/_authenticated/chat/'
+    | '/_authenticated/code/'
+    | '/_authenticated/settings/'
+    | '/_authenticated/wlcia/'
+    | '/api/public/jobs/gemini-recheck'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiChatRoute: typeof ApiChatRoute
+  ApiSystemChatRoute: typeof ApiSystemChatRoute
+  ApiSystemCommandRoute: typeof ApiSystemCommandRoute
+  ApiPublicJobsGeminiRecheckRoute: typeof ApiPublicJobsGeminiRecheckRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +352,252 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/chat': {
+      id: '/_authenticated/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof AuthenticatedChatRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/chat/': {
+      id: '/_authenticated/chat/'
+      path: '/'
+      fullPath: '/chat/'
+      preLoaderRoute: typeof AuthenticatedChatIndexRouteImport
+      parentRoute: typeof AuthenticatedChatRoute
+    }
+    '/_authenticated/chat/$conversationId': {
+      id: '/_authenticated/chat/$conversationId'
+      path: '/$conversationId'
+      fullPath: '/chat/$conversationId'
+      preLoaderRoute: typeof AuthenticatedChatConversationIdRouteImport
+      parentRoute: typeof AuthenticatedChatRoute
+    }
+    '/_authenticated/code/': {
+      id: '/_authenticated/code/'
+      path: '/code'
+      fullPath: '/code/'
+      preLoaderRoute: typeof AuthenticatedCodeIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/code/$projectId': {
+      id: '/_authenticated/code/$projectId'
+      path: '/code/$projectId'
+      fullPath: '/code/$projectId'
+      preLoaderRoute: typeof AuthenticatedCodeProjectIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/settings/': {
+      id: '/_authenticated/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/backup': {
+      id: '/_authenticated/settings/backup'
+      path: '/backup'
+      fullPath: '/settings/backup'
+      preLoaderRoute: typeof AuthenticatedSettingsBackupRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/cloudflare': {
+      id: '/_authenticated/settings/cloudflare'
+      path: '/cloudflare'
+      fullPath: '/settings/cloudflare'
+      preLoaderRoute: typeof AuthenticatedSettingsCloudflareRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/database': {
+      id: '/_authenticated/settings/database'
+      path: '/database'
+      fullPath: '/settings/database'
+      preLoaderRoute: typeof AuthenticatedSettingsDatabaseRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/deploy': {
+      id: '/_authenticated/settings/deploy'
+      path: '/deploy'
+      fullPath: '/settings/deploy'
+      preLoaderRoute: typeof AuthenticatedSettingsDeployRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/gemini': {
+      id: '/_authenticated/settings/gemini'
+      path: '/gemini'
+      fullPath: '/settings/gemini'
+      preLoaderRoute: typeof AuthenticatedSettingsGeminiRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/github': {
+      id: '/_authenticated/settings/github'
+      path: '/github'
+      fullPath: '/settings/github'
+      preLoaderRoute: typeof AuthenticatedSettingsGithubRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/profile': {
+      id: '/_authenticated/settings/profile'
+      path: '/profile'
+      fullPath: '/settings/profile'
+      preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/repositories': {
+      id: '/_authenticated/settings/repositories'
+      path: '/repositories'
+      fullPath: '/settings/repositories'
+      preLoaderRoute: typeof AuthenticatedSettingsRepositoriesRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/sistema': {
+      id: '/_authenticated/settings/sistema'
+      path: '/sistema'
+      fullPath: '/settings/sistema'
+      preLoaderRoute: typeof AuthenticatedSettingsSistemaRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/wlcia/': {
+      id: '/_authenticated/wlcia/'
+      path: '/wlcia'
+      fullPath: '/wlcia/'
+      preLoaderRoute: typeof AuthenticatedWlciaIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/wlcia/$versionId': {
+      id: '/_authenticated/wlcia/$versionId'
+      path: '/wlcia/$versionId'
+      fullPath: '/wlcia/$versionId'
+      preLoaderRoute: typeof AuthenticatedWlciaVersionIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/system/chat': {
+      id: '/api/system/chat'
+      path: '/api/system/chat'
+      fullPath: '/api/system/chat'
+      preLoaderRoute: typeof ApiSystemChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/system/command': {
+      id: '/api/system/command'
+      path: '/api/system/command'
+      fullPath: '/api/system/command'
+      preLoaderRoute: typeof ApiSystemCommandRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/jobs/gemini-recheck': {
+      id: '/api/public/jobs/gemini-recheck'
+      path: '/api/public/jobs/gemini-recheck'
+      fullPath: '/api/public/jobs/gemini-recheck'
+      preLoaderRoute: typeof ApiPublicJobsGeminiRecheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AuthenticatedSettingsRouteRouteChildren {
+  AuthenticatedSettingsBackupRoute: typeof AuthenticatedSettingsBackupRoute
+  AuthenticatedSettingsCloudflareRoute: typeof AuthenticatedSettingsCloudflareRoute
+  AuthenticatedSettingsDatabaseRoute: typeof AuthenticatedSettingsDatabaseRoute
+  AuthenticatedSettingsDeployRoute: typeof AuthenticatedSettingsDeployRoute
+  AuthenticatedSettingsGeminiRoute: typeof AuthenticatedSettingsGeminiRoute
+  AuthenticatedSettingsGithubRoute: typeof AuthenticatedSettingsGithubRoute
+  AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
+  AuthenticatedSettingsRepositoriesRoute: typeof AuthenticatedSettingsRepositoriesRoute
+  AuthenticatedSettingsSistemaRoute: typeof AuthenticatedSettingsSistemaRoute
+  AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
+}
+
+const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren =
+  {
+    AuthenticatedSettingsBackupRoute: AuthenticatedSettingsBackupRoute,
+    AuthenticatedSettingsCloudflareRoute: AuthenticatedSettingsCloudflareRoute,
+    AuthenticatedSettingsDatabaseRoute: AuthenticatedSettingsDatabaseRoute,
+    AuthenticatedSettingsDeployRoute: AuthenticatedSettingsDeployRoute,
+    AuthenticatedSettingsGeminiRoute: AuthenticatedSettingsGeminiRoute,
+    AuthenticatedSettingsGithubRoute: AuthenticatedSettingsGithubRoute,
+    AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
+    AuthenticatedSettingsRepositoriesRoute:
+      AuthenticatedSettingsRepositoriesRoute,
+    AuthenticatedSettingsSistemaRoute: AuthenticatedSettingsSistemaRoute,
+    AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
+  }
+
+const AuthenticatedSettingsRouteRouteWithChildren =
+  AuthenticatedSettingsRouteRoute._addFileChildren(
+    AuthenticatedSettingsRouteRouteChildren,
+  )
+
+interface AuthenticatedChatRouteChildren {
+  AuthenticatedChatConversationIdRoute: typeof AuthenticatedChatConversationIdRoute
+  AuthenticatedChatIndexRoute: typeof AuthenticatedChatIndexRoute
+}
+
+const AuthenticatedChatRouteChildren: AuthenticatedChatRouteChildren = {
+  AuthenticatedChatConversationIdRoute: AuthenticatedChatConversationIdRoute,
+  AuthenticatedChatIndexRoute: AuthenticatedChatIndexRoute,
+}
+
+const AuthenticatedChatRouteWithChildren =
+  AuthenticatedChatRoute._addFileChildren(AuthenticatedChatRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
+  AuthenticatedChatRoute: typeof AuthenticatedChatRouteWithChildren
+  AuthenticatedCodeProjectIdRoute: typeof AuthenticatedCodeProjectIdRoute
+  AuthenticatedWlciaVersionIdRoute: typeof AuthenticatedWlciaVersionIdRoute
+  AuthenticatedCodeIndexRoute: typeof AuthenticatedCodeIndexRoute
+  AuthenticatedWlciaIndexRoute: typeof AuthenticatedWlciaIndexRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
+  AuthenticatedChatRoute: AuthenticatedChatRouteWithChildren,
+  AuthenticatedCodeProjectIdRoute: AuthenticatedCodeProjectIdRoute,
+  AuthenticatedWlciaVersionIdRoute: AuthenticatedWlciaVersionIdRoute,
+  AuthenticatedCodeIndexRoute: AuthenticatedCodeIndexRoute,
+  AuthenticatedWlciaIndexRoute: AuthenticatedWlciaIndexRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  ResetPasswordRoute: ResetPasswordRoute,
+  ApiChatRoute: ApiChatRoute,
+  ApiSystemChatRoute: ApiSystemChatRoute,
+  ApiSystemCommandRoute: ApiSystemCommandRoute,
+  ApiPublicJobsGeminiRecheckRoute: ApiPublicJobsGeminiRecheckRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

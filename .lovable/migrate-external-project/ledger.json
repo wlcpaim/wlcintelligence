@@ -1,0 +1,105 @@
+{
+  "source": "code-archive",
+  "artifact": "wlc-launchpad-studio-main.zip",
+  "root": "wlc-launchpad-studio-main",
+  "capabilities": [
+    {
+      "capability": "code",
+      "source": "TanStack Start v1 + React 19 + Tailwind v4 app (WLC IA: Chat, Code Studio/Copilot, WLC Versions, Orchestrator, v199 Hybrid Team, System Cognitive Engine, Settings)",
+      "outcome": "migrate",
+      "status": "verified",
+      "next_action": "Build OK, 35 test files / 194 tests passing, home page verified in browser."
+    },
+    {
+      "capability": "schema",
+      "source": "Supabase/PostgreSQL (16 tables in drizzle/migrations/0000_recreate_wlcia_schema.sql + RPCs set_updated_at, claim_legacy_account, inspect_schema, exec_migration + realtime on system_events)",
+      "outcome": "migrate",
+      "status": "verified",
+      "next_action": "Recreated 16 tables, RLS, grants, realtime and RPCs in the new Lovable Cloud (archive had no SQL; rebuilt from types)."
+    },
+    {
+      "capability": "records",
+      "source": "No database record exports attached in wlcia_1.zip",
+      "outcome": "migrate",
+      "status": "pending",
+      "next_action": "Request per-table CSV or JSON exports from the previous Supabase project dashboard after preview."
+    },
+    {
+      "capability": "auth_identities",
+      "source": "Supabase Auth (Google OAuth + legacy_users claim flow via claim_legacy_account RPC)",
+      "outcome": "migrate",
+      "status": "pending",
+      "next_action": "Google OAuth, email/password sign-up with email verification, /reset-password, and claim_legacy_account() are active; awaiting user export (original user IDs and email addresses) to populate legacy_users and verify imported-user claim."
+    },
+    {
+      "capability": "authorization",
+      "source": "Per-user Row Level Security (auth.uid() = user_id) across all 15 user tables, service_role-only legacy_users and exec_migration, authenticated bearer checks on server functions and API routes",
+      "outcome": "migrate",
+      "status": "verified",
+      "next_action": "None. All 16 tables have RLS enabled, unauthenticated /chat redirects to /, and authenticated server functions verified."
+    },
+    {
+      "capability": "uploaded_file_bytes",
+      "source": "None detected (no Supabase Storage buckets or file object uploads used)",
+      "outcome": "not_applicable",
+      "status": "verified",
+      "next_action": "None."
+    },
+    {
+      "capability": "external_providers",
+      "source": "Google Gemini API (per-user encrypted keys), GitHub API (per-user encrypted PAT), Cloudflare Pages API (per-user encrypted API token)",
+      "outcome": "preserve",
+      "status": "pending",
+      "next_action": "All three integrations are preserved and hardcoded tokens were removed from quick-setup; users configure their Gemini, GitHub, and Cloudflare credentials in Settings."
+    },
+    {
+      "capability": "public_endpoints",
+      "source": "/api/public/jobs/gemini-recheck (cron-authenticated), /api/chat, /api/system/chat, /api/system/command (bearer-authenticated)",
+      "outcome": "preserve",
+      "status": "verified",
+      "next_action": "None. All four server routes migrated with bearer/cron authentication intact."
+    },
+    {
+      "capability": "callbacks",
+      "source": "Google OAuth callback to app origin (window.location.origin) via Lovable managed auth on Lovable domains and Supabase OAuth on custom domains",
+      "outcome": "migrate",
+      "status": "verified",
+      "next_action": "None. Managed Google OAuth and email confirmation/password-recovery routes configured."
+    },
+    {
+      "capability": "webhooks",
+      "source": "None detected",
+      "outcome": "not_applicable",
+      "status": "verified",
+      "next_action": "None."
+    },
+    {
+      "capability": "schedules",
+      "source": "Scheduled job endpoint /api/public/jobs/gemini-recheck using authenticateCronRequest (LOVABLE_CRON_SECRET)",
+      "outcome": "preserve",
+      "status": "pending",
+      "next_action": "Endpoint and cron authentication are preserved; activate a managed HTTP schedule for /api/public/jobs/gemini-recheck once Gemini keys are added."
+    },
+    {
+      "capability": "secrets",
+      "source": "INTEGRATIONS_MASTER_KEY (app-internal AES-256-GCM key for encrypting user provider tokens), LOVABLE_CRON_SECRET (platform-managed for cron)",
+      "outcome": "migrate",
+      "status": "verified",
+      "next_action": "None. Fresh INTEGRATIONS_MASTER_KEY generated securely; .env and hardcoded quick-setup credentials excluded. Previously encrypted provider tokens from the old database will need to be re-entered in Settings."
+    },
+    {
+      "capability": "cutover",
+      "source": "Previous Supabase project ref uzdslpwpeupmhnyxqryt (supabase/config.toml) and hardcoded quick-setup DB URL wnmrtobkvuqtmomizanz",
+      "outcome": "migrate",
+      "status": "verified",
+      "next_action": "None. App runs exclusively against the new Lovable Cloud project."
+    },
+    {
+      "capability": "verification",
+      "source": "Build, TypeScript check, Vitest suite, live preview browser verification, and Cloud CRUD/RLS/auth verification",
+      "outcome": "verify",
+      "status": "pending",
+      "next_action": "Signed-in flows, imported-user claim, and live Gemini/GitHub/Cloudflare calls pending data and user keys."
+    }
+  ]
+}

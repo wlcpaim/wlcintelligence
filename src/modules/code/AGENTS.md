@@ -1,0 +1,1 @@
+- WLC 1.7.1 PRO has its own Copilot (`services/pro-copilot.server.ts`): picks files from the full project map, scaffolds up to 30 files, and resolves exact-unique search/replace edits server-side into reviewable full-file proposals. Why: the 1.5.6 Copilot stays file-focused; PRO works project-wide.

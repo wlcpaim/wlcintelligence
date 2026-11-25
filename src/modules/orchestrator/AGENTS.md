@@ -1,0 +1,1 @@
+- Bots execute real commands via the `WLC Runner` GitHub Actions workflow (`src/modules/orchestrator/runner-*.ts`): installed into the linked repo on demand, command passed through an env var and checked against an allow-list, logs read back from the job. Why: Cloudflare Workers have no shell; Actions gives a real Ubuntu VM.
