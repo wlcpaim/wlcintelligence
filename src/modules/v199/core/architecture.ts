@@ -237,7 +237,8 @@ export function detectMissingRedirects(files: ArchFile[]): ArchIssue[] {
     /"vite"/.test(pkg) || map.has("vite.config.ts") || map.has("vite.config.js");
   const isMeta =
     /@tanstack\/react-start|"next"|"nuxt"|"astro"/.test(pkg) ||
-    map.has("src/routes/__root.tsx");
+    map.has("src/routes/__root.tsx") ||
+    map.has("src/router.tsx");
 
   if (isViteSpa && !isMeta && !map.has("public/_redirects")) {
     issues.push({

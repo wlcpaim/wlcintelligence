@@ -12,7 +12,7 @@ export function visualBootstrap(files: ContractFile[]): { changes: ContractFile[
   const version = deps["tailwindcss"];
   if (!version) return { changes, issues };
   const major = version.match(/\d+/)?.[0];
-  const css = files.filter(f => f.path.endsWith(".css"));
+  const css = files.filter(f => f.path.endsWith(".css") && !/\.(test|spec)\.[tj]sx?$/.test(f.path) && !/(^|\/)(tests?|__tests__)\//.test(f.path));
   if (major === "3") {
     const config = files.find(f => /^tailwind\.config\.(js|cjs|mjs|ts)$/.test(f.path));
     if (!config) {

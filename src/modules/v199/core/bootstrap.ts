@@ -141,7 +141,12 @@ export function findMissingDependencies(files: BootstrapFile[]): MissingDep[] {
 
   for (const f of files) {
     const p = normPath(f.path);
-    if (p.startsWith("node_modules/") || !/\.(ts|tsx|js|jsx|mjs|mts|cjs)$/.test(p)) continue;
+    if (
+      p.startsWith("node_modules/") ||
+      !/\.(ts|tsx|js|jsx|mjs|mts|cjs)$/.test(p) ||
+      /\.(test|spec)\.[tj]sx?$/.test(p) ||
+      /(^|\/)(tests?|__tests__)\//.test(p)
+    ) continue;
     const lines = f.content.split("\n");
     lines.forEach((line, idx) => {
       const trimmed = line.trim();
