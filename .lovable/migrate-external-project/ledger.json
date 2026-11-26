@@ -1,28 +1,28 @@
 {
   "source": "code-archive",
-  "artifact": "wlc-launchpad-studio-main.zip",
-  "root": "wlc-launchpad-studio-main",
+  "artifact": "wlc-ia-full-updated.zip",
+  "root": "wlcintelligenceartificial-main",
   "capabilities": [
     {
       "capability": "code",
       "source": "TanStack Start v1 + React 19 + Tailwind v4 app (WLC IA: Chat, Code Studio/Copilot, WLC Versions, Orchestrator, v199 Hybrid Team, System Cognitive Engine, Settings)",
       "outcome": "migrate",
       "status": "verified",
-      "next_action": "Build OK, 35 test files / 194 tests passing, home page verified in browser."
+      "next_action": "Typecheck clean; 278/281 tests pass (3 bot-logic tests already failing in source); home page and /chat guard verified."
     },
     {
       "capability": "schema",
       "source": "Supabase/PostgreSQL (16 tables in drizzle/migrations/0000_recreate_wlcia_schema.sql + RPCs set_updated_at, claim_legacy_account, inspect_schema, exec_migration + realtime on system_events)",
       "outcome": "migrate",
       "status": "verified",
-      "next_action": "Recreated 16 tables, RLS, grants, realtime and RPCs in the new Lovable Cloud (archive had no SQL; rebuilt from types)."
+      "next_action": "Recreated 16 tables, RLS, grants, realtime and RPCs from types in this Lovable Cloud (archive had no SQL)."
     },
     {
       "capability": "records",
       "source": "No database record exports attached in wlcia_1.zip",
       "outcome": "migrate",
       "status": "pending",
-      "next_action": "Request per-table CSV or JSON exports from the previous Supabase project dashboard after preview."
+      "next_action": "Request per-table CSV/JSON exports and user list from the previous backend."
     },
     {
       "capability": "auth_identities",

@@ -19,7 +19,7 @@ const WRITE_AREAS: Record<AgentRole, RegExp[]> = {
   architect: [],
   frontend: [/^src\/(components|routes(?!\/api\/)|hooks|styles|assets)\//, /^src\/styles\.css$/],
   backend: [/^src\/(services|routes\/api|lib|modules|server)\//],
-  dba: [/^supabase\/migrations\/[\w.-]+\.sql$/],
+  dba: [/^supabase\/migrations\/[\w.-]+\.sql$/, /^(database\.manifest\.json|schema\.sql)$/],
   qa: [/\.test\.(ts|tsx)$/, /^(tests|e2e)\//, /\.py$/],
   devops: [/^(package\.json|index\.html|tailwind\.config\.[jt]s|postcss\.config\.[jt]s|wrangler\.(toml|jsonc?)|vite\.config\.ts|\.github\/workflows\/[\w.-]+\.ya?ml|scripts\/[\w.-]+\.sh)$/],
   systems: [/\.(go|rs)$/, /^(go\.mod|Cargo\.toml)$/],
@@ -50,4 +50,30 @@ export function parseBotStep(raw: string, role: AgentRole): BotStep {
     return { kind: "tool", tool: o["tool"] as ToolName, args };
   }
   return { kind: "done", report: typeof o["report"] === "string" ? o["report"] : "" };
+}
+
+
+/**
+ * Coordenação de ownership: impede que dois bots gravem o mesmo path na mesma rodada.
+ * Retorna o mapa path → role dono; conflitos ficam com o primeiro claim.
+ */
+export function claimWritePaths(
+  claims: { role: AgentRole; paths: string[] }[],
+): { owner: Map<string, AgentRole>; conflicts: { path: string; roles: AgentRole[] }[] } {
+  const owner = new Map<string, AgentRole>();
+  const contenders = new Map<string, AgentRole[]>();
+  for (const c of claims) {
+    for (const path of c.paths) {
+      const list = contenders.get(path) ?? [];
+      if (!list.includes(c.role)) list.push(c.role);
+      contenders.set(path, list);
+      if (!canWrite(c.role, path)) continue;
+      if (!owner.has(path)) owner.set(path, c.role);
+    }
+  }
+  const conflicts: { path: string; roles: AgentRole[] }[] = [];
+  for (const [path, roles] of contenders) {
+    if (roles.length > 1) conflicts.push({ path, roles });
+  }
+  return { owner, conflicts };
 }

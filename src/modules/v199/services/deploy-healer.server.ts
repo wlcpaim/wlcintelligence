@@ -1,10 +1,13 @@
 import type { Db } from "@/modules/integrations/core/runs.server";
-import { getCreds, getDeployment, startBuild } from "@/modules/integrations/cloudflare/services/cloudflare.server";
+import { getCreds, getDbEnv, getDeployment, startBuild } from "@/modules/integrations/cloudflare/services/cloudflare.server";
 import { commitPending } from "@/modules/code/services/commit.server";
+import { findSyntaxIssues } from "@/modules/code/edit-integrity";
 import { filesMentionedInLog } from "../core/diagnostics";
 import { inspectContracts, resolveLocalModule } from "../core/contracts";
 import { proposeSurgicalRepair } from "./quality.server";
 import { redactSecrets } from "@/modules/integrations/github/services/repository.server";
+import { provisionGeneratedDatabase } from "@/modules/engineering/generated-app.server";
+import { healPreflightIntegrity } from "./preflight.server";
 
 export interface HealResult { state: "retry" | "blocked" | "running"; deploymentId?: string; message: string }
 
@@ -17,7 +20,7 @@ export async function healFailedDeployment(db: Db, userId: string, projectId: st
   if (readError) throw new Error("Não foi possível ler o histórico da recuperação.");
   const same = prior?.find(r => r.id === deploymentId);
   if (same) { try { return JSON.parse(same.detail ?? "") as HealResult; } catch { return { state: "running", message: "Correção em andamento." }; } }
-  if ((prior?.length ?? 0) >= 2) return { state: "blocked", message: "Limite de duas correções atingido; revise os logs sem perder o projeto." };
+  if ((prior?.length ?? 0) >= 3) return { state: "blocked", message: "Limite de três correções atingido; revise os logs sem perder o projeto." };
   if (deploymentId !== rootId && !prior?.some(r => {
     try { return (JSON.parse(r.detail ?? "{}") as HealResult).deploymentId === deploymentId; } catch { return false; }
   })) throw new Error("Deploy não pertence a esta recuperação.");
@@ -43,14 +46,19 @@ export async function healFailedDeployment(db: Db, userId: string, projectId: st
     const files = rows.filter(f => !f.deleted && redactSecrets(f.content) === f.content);
     const log = redactSecrets(failed.logs.join("\n"));
     const paths = new Set(filesMentionedInLog(log, files.map(f => f.path), 6));
+    // Inclui arquivos com sintaxe local quebrada (delimitadores/JSX) mesmo se o log da CF não citar o path
+    for (const syn of findSyntaxIssues(files).filter(i => i.severity === "error")) {
+      paths.add(syn.path);
+    }
     for (const issue of inspectContracts(files).issues) { if (paths.has(issue.path)) { if (issue.target) paths.add(issue.target); } }
     for (const file of files.filter(f => paths.has(f.path))) {
       for (const m of file.content.matchAll(/from\s+["']([^"']+)["']/g)) {
         const target = m[1] ? resolveLocalModule(file.path, m[1], files.map(f => f.path)) : null;
-        if (target && paths.size < 10) paths.add(target);
+        if (target && paths.size < 12) paths.add(target);
       }
     }
     paths.add("package.json");
+    paths.add("src/lib/generated-app-client.ts");
     const read = files.filter(f => paths.has(f.path));
     if (read.reduce((n, f) => n + f.content.length, 0) > 100000) return finish({ state: "blocked", message: "Contexto grande demais para correção segura; revisão necessária." });
     const changes = await proposeSurgicalRepair(db, userId, files, [log], paths, AbortSignal.timeout(90000));
@@ -63,6 +71,8 @@ export async function healFailedDeployment(db: Db, userId: string, projectId: st
       const saved = await db.from("code_files").update({ content: c.content, updated_at: new Date().toISOString() }).eq("id", original.id).eq("user_id", userId).eq("updated_at", original.updated_at).select("id");
       if (saved.error || saved.data?.length !== 1) throw new Error("Arquivo alterado durante a correção; processo interrompido com backup preservado.");
     }
+    const checked = await healPreflightIntegrity(db, userId, projectId, project.base_sha, AbortSignal.timeout(180000));
+    await provisionGeneratedDatabase(db, projectId, checked.files, await getDbEnv(db, userId));
     const committed = await commitPending(db, userId, projectId, "fix(deploy): correção cirúrgica WLC 1.9.9");
     if (!committed) throw new Error("Correção não gerou commit novo.");
     const next = await startBuild(token, accountId, project.cf_project, project.branch || "main");

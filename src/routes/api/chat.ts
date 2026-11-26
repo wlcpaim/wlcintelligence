@@ -181,7 +181,7 @@ export const Route = createFileRoute("/api/chat")({
                     full += line + "\n";
                     event({ type: "delta", text: line + "\n" });
                   },
-                  { workspace: convWorkspace, existingFiles, existingPaths: existingFiles.map(f => f.path) },
+                  { workspace: convWorkspace, existingFiles, existingPaths: existingFiles.map(f => f.path), deadline: Date.now() + (await import("@/modules/v199/core/budget")).TEAM_SOFT_BUDGET_MS },
                 );
                 const ws = { projectId: team.projectId ?? convWorkspace.projectId, projectName: team.projectName ?? convWorkspace.projectName };
                 let publication = "";

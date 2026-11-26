@@ -2,23 +2,69 @@ import type { Db } from "@/modules/integrations/core/runs.server";
 import { getCreds, getDbEnv, findGitProject, createGitProject, setProjectEnv, startBuild, latestDeployment, getDeployment } from "@/modules/integrations/cloudflare/services/cloudflare.server";
 import { detectBuild, deployEnvVars } from "@/modules/integrations/cloudflare/build";
 import { commitPending } from "@/modules/code/services/commit.server";
-import { inspectContracts } from "../core/contracts";
-import { findMissingLocalImports } from "../core/gaps";
-import { diagnoseBuildReadiness } from "../core/bootstrap";
+import { healPreflightIntegrity } from "./preflight.server";
 import { healFailedDeployment } from "./deploy-healer.server";
+import { recordMetric } from "@/modules/engineering/kernel";
+import { provisionGeneratedDatabase } from "@/modules/engineering/generated-app.server";
 
-/** Shared by authenticated Chat and Code; no client bypass of validation. */
+/** Shared by authenticated Chat and Code; no client bypass of validation. Publish Guard: métrica + preflight. */
 export async function startValidatedPublish(db: Db, userId: string, projectId: string) {
   const { data: p, error } = await db.from("code_projects").select("*").eq("id", projectId).eq("user_id", userId).single();
-  if (error || !p) throw new Error("Projeto não encontrado.");
-  if (!p.repo_full_name) throw new Error("Vincule um repositório GitHub antes do Deploy.");
-  const { data: fs, error: fileError } = await db.from("code_files").select("path,content").eq("project_id", p.id).eq("user_id", userId).eq("deleted", false).limit(3000);
-  if (fileError || !fs) throw new Error("Não foi possível validar arquivos antes de publicar.");
-  const issues = [...inspectContracts(fs).issues.map(i => `${i.path}: ${i.message}`), ...diagnoseBuildReadiness(fs).map(i => `${i.path}: ${i.message}`), ...findMissingLocalImports(fs).map(i => `${i.importer}: falta ${i.target}`)];
-  if (issues.length) throw new Error(`Publicação bloqueada por integridade: ${issues.slice(0, 5).join("; ")}`);
+  if (error || !p) {
+    recordMetric(userId, "publish_blocked");
+    throw new Error("Projeto não encontrado.");
+  }
+  if (!p.repo_full_name) {
+    recordMetric(userId, "publish_blocked");
+    throw new Error("Vincule um repositório GitHub antes do Deploy.");
+  }
   // Check provider credentials before committing: a missing connection must not cause side effects.
   const { token, accountId } = await getCreds(db, userId);
-  const env = deployEnvVars(await getDbEnv(db, userId));
+  const database = await getDbEnv(db, userId);
+  const env = deployEnvVars(database);
+  env['VITE_WLC_PROJECT_ID'] = { type: "plain_text", value: projectId };
+
+  // Pré-voo com retry: se a 1ª autocorreção deixar sintaxe quebrada, o time de qualidade
+  // roda de novo e o pré-voo tenta outra vez antes de bloquear o Deploy.
+  let fs: Awaited<ReturnType<typeof healPreflightIntegrity>>["files"];
+  let repaired = 0;
+  const preflightSignal = AbortSignal.timeout(240000);
+  try {
+    const first = await healPreflightIntegrity(db, userId, p.id, p.base_sha, preflightSignal);
+    fs = first.files;
+    repaired = first.repaired;
+  } catch (firstErr) {
+    const msg = firstErr instanceof Error ? firstErr.message : String(firstErr);
+    const syntaxBlocked = /Delimitadores|sintaxe|JSX não fechado|Publicação bloqueada|Autocorreção/i.test(msg);
+    if (!syntaxBlocked) {
+      recordMetric(userId, "publish_blocked");
+      throw firstErr;
+    }
+    // Segunda chance: repairProjectQuality + pré-voo novamente
+    const { repairProjectQuality } = await import("./quality.server");
+    const rows: { path: string; content: string }[] = [];
+    for (let from = 0; ; from += 1000) {
+      const page = await db.from("code_files").select("path,content").eq("project_id", p.id).eq("user_id", userId).eq("deleted", false).range(from, from + 999);
+      if (page.error || !page.data) break;
+      rows.push(...page.data);
+      if (page.data.length < 1000) break;
+    }
+    const usage = new Map();
+    await repairProjectQuality(
+      db, userId, rows, AbortSignal.timeout(120000),
+      () => {}, usage, true,
+    );
+    try {
+      const second = await healPreflightIntegrity(db, userId, p.id, p.base_sha, AbortSignal.timeout(180000));
+      fs = second.files;
+      repaired = second.repaired;
+    } catch (secondErr) {
+      recordMetric(userId, "publish_blocked");
+      throw secondErr instanceof Error ? secondErr : firstErr;
+    }
+  }
+
+  const provisioned = await provisionGeneratedDatabase(db, projectId, fs, database);
   const committed = await commitPending(db, userId, p.id, "deploy: atualização pelo WLC IA");
   const build = detectBuild(fs);
   const branch = p.branch || "main";
@@ -30,7 +76,7 @@ export async function startValidatedPublish(db: Db, userId: string, projectId: s
   const url = `https://${project.subdomain}`;
   const saved = await db.from("code_projects").update({ cf_project: project.name, deploy_url: url }).eq("id", p.id).eq("user_id", userId);
   if (saved.error) throw new Error("Publicação iniciada, mas não foi possível salvar o destino.");
-  return { deploymentId, cfProject: project.name, url, committed: committed?.count ?? 0 };
+  return { deploymentId, cfProject: project.name, url, committed: committed?.count ?? 0, repaired, databaseTables: provisioned.tables };
 }
 
 export async function monitorPublish(db: Db, userId: string, projectId: string, initial: Awaited<ReturnType<typeof startValidatedPublish>>, signal: AbortSignal, onEvent: (line: string) => void) {
@@ -47,6 +93,7 @@ export async function monitorPublish(db: Db, userId: string, projectId: string, 
       const response = await fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]) });
       if (!response.ok) throw new Error(`Publicação terminou, mas a página respondeu HTTP ${response.status}.`);
       await response.body?.cancel();
+      recordMetric(userId, "publish_success");
       return { state: "published" as const, url: d.url, message: "Deploy confirmado e página acessível. Aparência e operações ainda precisam de teste no navegador." };
     }
     if (d.state === "failure") {

@@ -39,3 +39,34 @@ it("aceita JSX importado de lucide-react", () => {
   ];
   expect(inspectContracts(files).issues.filter(i => /Identificador JSX/.test(i.message))).toHaveLength(0);
 });
+it("aceita Icon de parâmetro desestruturado e de variável local (sem falso positivo)", () => {
+  const files = [
+    {
+      path: "src/components/MetricCard.tsx",
+      content: `import type { LucideIcon } from "lucide-react";
+export function MetricCard({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return <div><Icon /><span>{label}</span></div>;
+}
+export default MetricCard;
+`,
+    },
+    {
+      path: "src/components/Sidebar.tsx",
+      content: `const items = [{ icon: Home }];
+export default function Sidebar() {
+  return (
+    <nav>
+      {items.map((item) => {
+        const Icon = item.icon;
+        return <Icon key={1} />;
+      })}
+    </nav>
+  );
+}
+function Home() { return null; }
+`,
+    },
+  ];
+  const jsxIssues = inspectContracts(files).issues.filter(i => /Identificador JSX/.test(i.message));
+  expect(jsxIssues).toEqual([]);
+});

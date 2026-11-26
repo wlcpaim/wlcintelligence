@@ -20,6 +20,7 @@ export async function generateTeamCopilot(
   activePath: string | null,
   history: { role: "user" | "model"; content: string }[],
   signal: AbortSignal,
+  deadline?: number,
 ): Promise<CopilotAnswer> {
   const { data: project } = await db.from("code_projects").select("id,name").eq("id", projectId).eq("user_id", userId).single();
   if (!project) throw new Error("Projeto não encontrado.");
@@ -56,6 +57,7 @@ export async function generateTeamCopilot(
     apply: false,
     existingFiles: [...included.values()].map((f) => ({ path: f.path, content: f.content })),
     existingPaths: visible.map((f) => f.path).slice(0, MAX_PATHS),
+    ...(deadline !== undefined ? { deadline } : {}),
   });
   if (!team.plan) throw new Error(team.summary);
 

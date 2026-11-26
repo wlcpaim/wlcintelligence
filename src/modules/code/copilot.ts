@@ -86,22 +86,110 @@ export function fileStillMatches(
 }
 const STOP = new Set(["para","com","que","uma","um","the","and","mais","menos","deixa","deixe","muda","mude","faz","faça","fazer","como","este","esse","isso","dos","das","nos","nas","por","pelo","pela","seu","sua"]);
 
-/** Orders files: active file first, then by keyword matches with the request in path, then by path. */
-export function rankCopilotFiles<T extends { path: string }>(files: T[], message: string, activePath: string | null): T[] {
+/**
+ * Grafo de imports locais (puro): path → arquivos que ele importa.
+ * Usado para expandir o impacto de uma edição além de keyword matching.
+ */
+export function buildLocalImportGraph(
+  files: { path: string; content: string }[],
+): Map<string, string[]> {
+  const paths = new Set(files.map(f => f.path));
+  const graph = new Map<string, string[]>();
+  const re = /(?:import|export)\s[^'"`;]*?from\s*["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)/g;
+  const resolve = (from: string, spec: string): string | null => {
+    if (!spec.startsWith(".") && !spec.startsWith("@/")) return null;
+    const parts = spec.startsWith("@/") ? ["src"] : from.split("/").slice(0, -1);
+    for (const seg of (spec.startsWith("@/") ? spec.slice(2) : spec).split("/")) {
+      if (seg === "..") parts.pop();
+      else if (seg && seg !== ".") parts.push(seg);
+    }
+    const base = parts.join("/");
+    const cands = [
+      base,
+      ...[".ts", ".tsx", ".js", ".jsx"].flatMap(e => [base + e, base + "/index" + e]),
+    ];
+    return cands.find(c => paths.has(c)) ?? null;
+  };
+  for (const f of files) {
+    if (!/\.(tsx?|jsx?|mjs)$/.test(f.path)) continue;
+    const deps: string[] = [];
+    for (const m of f.content.matchAll(re)) {
+      const spec = m[1] ?? m[2];
+      if (!spec) continue;
+      const target = resolve(f.path, spec);
+      if (target) deps.push(target);
+    }
+    graph.set(f.path, [...new Set(deps)]);
+  }
+  return graph;
+}
+
+/** Expande seeds com vizinhos de import (1 hop in + out) para mapa de impacto. */
+export function expandImpactPaths(
+  seeds: string[],
+  graph: Map<string, string[]>,
+  max = 24,
+): string[] {
+  const reverse = new Map<string, string[]>();
+  for (const [from, tos] of graph) {
+    for (const to of tos) {
+      const list = reverse.get(to) ?? [];
+      list.push(from);
+      reverse.set(to, list);
+    }
+  }
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const queue = [...seeds];
+  while (queue.length && out.length < max) {
+    const p = queue.shift()!;
+    if (seen.has(p)) continue;
+    seen.add(p);
+    out.push(p);
+    for (const n of [...(graph.get(p) ?? []), ...(reverse.get(p) ?? [])]) {
+      if (!seen.has(n)) queue.push(n);
+    }
+  }
+  return out;
+}
+
+/** Orders files: active file first, keyword score, then import-graph proximity to top hits. */
+export function rankCopilotFiles<T extends { path: string; content?: string }>(
+  files: T[],
+  message: string,
+  activePath: string | null,
+): T[] {
   const terms = [...new Set(message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .split(/[^a-z0-9]+/).filter(t => t.length >= 3 && !STOP.has(t)))];
-  const score = (path: string) => {
+  const keywordScore = (path: string) => {
     if (path === activePath) return Number.MAX_SAFE_INTEGER;
     const lower = path.toLowerCase();
     const name = lower.split("/").pop() ?? lower;
-    // Arquivos de contexto ajudam a entender comandos, dependências e compilação.
     const contextPriority = new Map([
       ["agents.md", 24], ["package.json", 22], ["tsconfig.json", 20],
       ["vite.config.ts", 16], ["vitest.config.ts", 16], ["eslint.config.js", 14],
-      ["readme.md", 12],
+      ["readme.md", 12], ["app.tsx", 18], ["main.tsx", 14],
     ]).get(name) ?? 0;
     return contextPriority + terms.reduce((sum, t) => sum + (name.includes(t) ? 3 : lower.includes(t) ? 1 : 0), 0);
   };
-  return files.map(f => ({ f, s: score(f.path) }))
-    .sort((a, b) => b.s - a.s || a.f.path.localeCompare(b.f.path)).map(x => x.f);
+
+  const withContent = files.filter(f => typeof f.content === "string") as (T & { content: string })[];
+  let impactBoost = new Map<string, number>();
+  if (withContent.length >= 2) {
+    const graph = buildLocalImportGraph(withContent);
+    const seeds = files
+      .map(f => ({ path: f.path, s: keywordScore(f.path) }))
+      .filter(x => x.s > 0 && x.s < Number.MAX_SAFE_INTEGER)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 8)
+      .map(x => x.path);
+    if (activePath) seeds.unshift(activePath);
+    const impact = expandImpactPaths(seeds, graph, 32);
+    impact.forEach((p, i) => impactBoost.set(p, Math.max(0, 12 - Math.floor(i / 2))));
+  }
+
+  return files
+    .map(f => ({ f, s: keywordScore(f.path) + (impactBoost.get(f.path) ?? 0) }))
+    .sort((a, b) => b.s - a.s || a.f.path.localeCompare(b.f.path))
+    .map(x => x.f);
 }

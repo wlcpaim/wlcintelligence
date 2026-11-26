@@ -1,7 +1,7 @@
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Plus, Pin, PinOff, Pencil, Trash2, MoreHorizontal, MessageSquare, Search } from "lucide-react";
+import { Plus, Pin, PinOff, Pencil, Trash2, MoreHorizontal, MessageSquare, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,8 +46,9 @@ export function ConversationHistory({ onOpen }: { onOpen?: () => void }) {
     if (params.conversationId === id) await navigate({ to: "/code" });
     await qc.invalidateQueries({ queryKey: ["conversations"] });
   }, onError: e => toast.error(e.message) });
-  const q = query.trim().toLowerCase();
-  const list = q ? data.filter(c => c.title.toLowerCase().includes(q)) : data;
+  const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const q = normalize(query.trim());
+  const list = q ? data.filter(c => normalize(c.title).includes(q)) : data;
   const pinned = list.filter(c => c.is_pinned);
   const recent = list.filter(c => !c.is_pinned);
   const item = (c: Conversation) => <li key={c.id} className={`group flex min-w-0 items-center gap-1 rounded-xl border pr-1 transition-colors ${params.conversationId === c.id ? "border-primary/40 bg-accent" : "border-transparent hover:border-border hover:bg-accent/50"}`}>
@@ -71,7 +72,17 @@ export function ConversationHistory({ onOpen }: { onOpen?: () => void }) {
   return <div className="flex min-h-0 flex-1 flex-col">
     {data.length > 0 && <div className="relative mb-4 shrink-0">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-      <Input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar conversas" aria-label="Buscar conversas" className="h-10 rounded-full pl-9" />
+      <Input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar conversas" aria-label="Buscar conversas" className="h-10 rounded-full pl-9 pr-9" />
+      {query.trim() !== "" && (
+        <button
+          type="button"
+          onClick={() => setQuery("")}
+          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+          aria-label="Limpar busca"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
     </div>}
     <div className="min-h-0 flex-1 overflow-y-auto pb-4">
       {data.length === 0 && <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">

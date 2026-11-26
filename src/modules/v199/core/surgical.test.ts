@@ -19,3 +19,17 @@ it("rejeita nova sintaxe inválida e trechos ambíguos", () => {
   expect(() => surgicalChanges(files, { changes: [{ path: "src/data.ts", edits: [{ search: "[]", replace: "[" }] }] }, new Set(["src/data.ts"]))).toThrow("erro novo");
   expect(() => surgicalChanges([{ path: "src/a.ts", content: "const a=1; const b=1;" }], { changes: [{ path: "src/a.ts", edits: [{ search: "=1", replace: "=2" }] }] }, new Set(["src/a.ts"]))).toThrow("ambíguo");
 });
+import { pickRepairConsensus } from "./surgical";
+it("Bot de Bugs multi-API: vence a correção com mais votos entre APIs", () => {
+  const a = [{ path: "src/a.ts", content: "fix A" }];
+  const b = [{ path: "src/a.ts", content: "fix B maior" }];
+  const r = pickRepairConsensus([b, a, [], b]);
+  expect(r.votes).toBe(2);
+  expect(r.changes).toEqual(b);
+});
+it("Bot de Bugs multi-API: empate escolhe a correção menor e nenhuma API → vazio", () => {
+  const a = [{ path: "src/a.ts", content: "x" }];
+  const b = [{ path: "src/a.ts", content: "xxxx" }];
+  expect(pickRepairConsensus([b, a]).changes).toEqual(a);
+  expect(pickRepairConsensus([[], []]).changes).toEqual([]);
+});

@@ -36,8 +36,59 @@ const JSX_INTRINSICS = new Set([
   "Fragment", "Suspense", "StrictMode", "Profiler", "Activity",
 ]);
 
+/** Rastreia identificadores declarados em qualquer escopo (params desestruturados, locals, imports). */
+function collectAllDeclaredIdentifiers(ast: t.File): Set<string> {
+  const declared = new Set<string>(["React", "Fragment", "Suspense", "StrictMode", "Profiler", "Activity"]);
+
+  function extractBindings(node: t.Node | null | undefined) {
+    if (!node) return;
+    if (node.type === "Identifier") declared.add(node.name);
+    else if (node.type === "AssignmentPattern") extractBindings(node.left);
+    else if (node.type === "RestElement") extractBindings(node.argument);
+    else if (node.type === "ArrayPattern") node.elements.forEach(extractBindings);
+    else if (node.type === "ObjectPattern") {
+      for (const p of node.properties) {
+        if (p.type === "RestElement") extractBindings(p.argument);
+        else if (p.type === "ObjectProperty") extractBindings(p.value as t.Node);
+      }
+    }
+  }
+
+  function walk(node: unknown) {
+    if (!node || typeof node !== "object") return;
+    const n = node as { type?: string; local?: unknown; id?: unknown; params?: unknown; param?: unknown; [k: string]: unknown };
+    if (n.type === "ImportSpecifier" || n.type === "ImportDefaultSpecifier" || n.type === "ImportNamespaceSpecifier") {
+      const local = n.local as { name?: string } | undefined;
+      if (local?.name) declared.add(local.name);
+    }
+    if (n.type === "FunctionDeclaration" || n.type === "FunctionExpression" || n.type === "ArrowFunctionExpression") {
+      const id = n.id as { name?: string } | null | undefined;
+      if (id?.name) declared.add(id.name);
+      if (Array.isArray(n.params)) (n.params as t.Node[]).forEach(extractBindings);
+    }
+    if (n.type === "VariableDeclarator") extractBindings(n.id as t.Node);
+    if (n.type === "ClassDeclaration") {
+      const id = n.id as { name?: string } | null | undefined;
+      if (id?.name) declared.add(id.name);
+    }
+    if (n.type === "CatchClause" && n.param) extractBindings(n.param as t.Node);
+
+    for (const key of Object.keys(n)) {
+      if (key === "comments" || key === "loc" || key === "start" || key === "end" || key === "leadingComments" || key === "trailingComments") continue;
+      const child = n[key];
+      if (Array.isArray(child)) child.forEach(walk);
+      else if (child && typeof child === "object" && "type" in (child as object)) walk(child);
+    }
+  }
+
+  walk(ast.program);
+  return declared;
+}
+
+/** @deprecated use collectAllDeclaredIdentifiers — kept name for internal call sites */
 function collectDeclaredScope(body: t.Statement[]): Set<string> {
-  const scope = new Set<string>(["React", "Fragment"]);
+  // Fallback shallow path no longer used by findUndeclaredJsxIdentifiers
+  const scope = new Set<string>(["React", "Fragment", "Suspense", "StrictMode", "Profiler", "Activity"]);
   for (const node of body) {
     if (node.type === "ImportDeclaration") {
       for (const s of node.specifiers) {
@@ -50,16 +101,6 @@ function collectDeclaredScope(body: t.Statement[]): Set<string> {
     }
     if (node.type === "FunctionDeclaration" && node.id) scope.add(node.id.name);
     if (node.type === "ClassDeclaration" && node.id) scope.add(node.id.name);
-    if (node.type === "ExportNamedDeclaration" && node.declaration) {
-      const d = node.declaration;
-      if (d.type === "VariableDeclaration") for (const v of d.declarations) for (const n of bindings(v.id)) scope.add(n);
-      if (d.type === "FunctionDeclaration" && d.id) scope.add(d.id.name);
-      if (d.type === "ClassDeclaration" && d.id) scope.add(d.id.name);
-    }
-    if (node.type === "ExportDefaultDeclaration") {
-      const d = node.declaration;
-      if (d && "id" in d && d.id && d.id.type === "Identifier") scope.add(d.id.name);
-    }
   }
   return scope;
 }
@@ -90,7 +131,7 @@ export function findUndeclaredJsxIdentifiers(files: ContractFile[]): ContractIss
     if (!/\.(tsx|jsx)$/.test(f.path) || f.path.startsWith("node_modules/")) continue;
     try {
       const ast = parse(f.content, { sourceType: "unambiguous", plugins: ["typescript", "jsx"] });
-      const scope = collectDeclaredScope(ast.program.body);
+      const scope = collectAllDeclaredIdentifiers(ast);
       const used = new Set<string>();
       walkJsxIdentifiers(ast.program, used);
       for (const name of used) {

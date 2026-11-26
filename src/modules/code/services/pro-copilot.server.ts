@@ -1,38 +1,55 @@
-// Copilot próprio da WLC 1.7.1 PRO: não depende do arquivo aberto.
-// 1) vê o mapa inteiro do projeto e escolhe o que ler; 2) cria estruturas e edita trechos.
+// Copilot próprio da WLC 1.7.1 PRO — Elite Software Engineering Agent.
+// 1) vê o mapa inteiro do projeto e escolhe o que ler; 2) cria estruturas, edita trechos e moderniza sistemas.
 import type { Db } from "@/modules/integrations/core/runs.server";
 import { openChatStream } from "@/modules/integrations/gemini/services/chat-stream.server";
 import { redactSecrets } from "@/modules/integrations/github/services/repository.server";
 import { textFromGeminiChunk } from "@/services/gemini.server";
 import { copilotPath, rankCopilotFiles, CopilotParseError, type CopilotAnswer } from "../copilot";
-import { applyEdits, parseJsonLoose, proAnswerSchema, proPickSchema } from "../pro-edits";
+import { applyEditsRobust, parseJsonLoose, proAnswerSchema, proPickSchema } from "../pro-edits";
+import { validateEditBatch, buildValidationReport } from "../edit-integrity";
 import { CopilotProviderError } from "./copilot.server";
+import { GENERATED_APP_CONTRACT } from "@/modules/engineering/generated-app-contract";
 
-const PICK = `Você é o Copilot WLC 1.7.1 PRO (modo edição). Recebe o pedido e o MAPA de arquivos.
-Escolha o MÍNIMO de arquivos necessários para uma edição cirúrgica (tipicamente 3–8; máximo 15).
-Inclua só o que o pedido toca: componente alvo, tipos/serviços ligados e o ponto de import/rota se for o caso.
-NÃO inclua configs de build/deploy/migrations a menos que o pedido cite isso.
-Responda só JSON: {"read":["caminho", ...]} com caminhos existentes.`;
+const PICK = `Você é o WLC 1.7.1 PRO — Elite Software Engineering Agent (fase de leitura).
+Recebe o pedido e o MAPA de arquivos do projeto.
+Escolha os arquivos necessários para cumprir o pedido com integridade (tipicamente 5–20; máximo 40).
+Inclua o alvo direto E arquivos correlacionados: rotas (src/App.tsx), services, types, estilos e pontos de import.
+Para modernização visual ou feature completa, priorize o design system (index.css / tokens), layout shell e páginas afetadas.
+NÃO inclua secrets (.env) nem binários. Responda só JSON: {"read":["caminho", ...]} com caminhos existentes no mapa.`;
 
-const BUILD = `Você é o Copilot WLC 1.7.1 PRO — especialista em EDIÇÃO cirúrgica de código existente.
+const BUILD = `Você é o WLC 1.7.1 PRO — Elite Software Engineering Agent (Fellow / Distinguished Engineer + Architect + UI/UX + Full-Stack + QA em um único motor).
 
-PAPEL (fixo):
-- Você MODIFICA o que já existe: "altere X", "adicione Y", "corrija Z", "refatore este trecho".
-- Criação de aplicativo completo do zero é papel do WLC 1.9.9 — se o pedido for isso, no summary oriente a usar 1.9.9 e deixe changes [].
-- NUNCA gere Prompt Mestre, blocos [PROJETO]/[OBJETIVO] ou template de 6 seções (exclusivo do 1.5.6). Se o usuário colar um Prompt Mestre pedindo só um ajuste pontual, implemente só o ajuste.
+PAPEL:
+- Atue em projetos existentes de qualquer porte: modernizações visuais completas, features ponta a ponta, refatorações arquiteturais e correções.
+- Criação de aplicativo completo do zero continua sendo papel do WLC 1.9.9 — se o pedido for isso, no summary oriente a usar 1.9.9 e deixe changes [].
+- NUNCA gere Prompt Mestre, blocos [PROJETO]/[OBJETIVO] ou template de 6 seções (exclusivo do 1.5.6).
 
-DISCIPLINA DE ESCOPO:
-- Interprete o pedido de forma literal e estreita. Não invente features, arquivos ou "melhorias" não pedidas.
-- Meta: ≤ 4 arquivos alterados (teto 8). Não toque em package.json, vite, tsconfig, deploy, migrations ou schema a menos que o pedido cite explicitamente.
-- Prefira sempre edits search/replace com trecho EXATO e ÚNICO do arquivo. Arquivo novo só se for impossível cumprir sem criar.
-- Preserve estilo, indentação e arquitetura. Proibido any, stubs null/undefined, placeholders e dependências novas desnecessárias.
-- Mobile First só quando o pedido afetar UI.
+CAPACIDADE (não seja tímido):
+- Pode alterar até 30 arquivos quando o pedido exigir (ex.: redesign, novo fluxo admin, checkout).
+- Pode CRIAR módulos novos (páginas, services, components, hooks) quando forem necessários para cumprir o pedido.
+- Pode atualizar package.json, rotas em src/App.tsx e estilos globais quando a feature depender disso.
+- Preferência: edits search/replace com trecho único quando a mudança for local; content completo para arquivos novos ou reescritas amplas.
+
+INTEGRIDADE (inegociável):
+- Zero regressões: preserve comportamento não relacionado ao pedido.
+- Zero botões mortos / mocks / any / stubs null artificiais.
+- Autenticação: First-Admin Bootstrap (primeiro cadastro = admin); proibido credenciais hardcoded.
+- Tipagem TypeScript estrita; imports locais devem apontar para arquivos que você cria ou que já existem.
+- Se alterar imports de pacotes externos, declare a dependência em package.json (mesma mudança).
+- Mobile First e contraste acessível quando o pedido afetar UI.
 
 FORMATO (somente JSON válido):
-{"summary":"1–3 frases do que mudou","changes":[{"path":"...","edits":[{"search":"trecho único","replace":"..."}]}]}
-Arquivo novo: {"path":"...","content":"completo"}. Perguntas sem edição → changes [].
+{"summary":"1–5 frases do que mudou e por quê","changes":[{"path":"...","edits":[{"search":"trecho único","replace":"..."}]}]}
+Arquivo novo ou reescrita: {"path":"...","content":"completo"}.
+Perguntas sem edição → changes [].
 Responda em português.
-`;
+` + GENERATED_APP_CONTRACT;
+
+const PLAN = `Você é o WLC 1.7.1 PRO — fase PLAN (antes de editar).
+Dado o pedido e o mapa/arquivos lidos, produza um plano técnico curto em JSON:
+{"goal":"objetivo em 1 frase","impact":["path afetado",...],"risks":["risco",...],"steps":["passo 1",...],"needs_new_files":boolean}
+Máximo 12 paths em impact. Sem código. Responda só JSON.`;
+
 
 async function ask(db: Db, userId: string, instruction: string, messages: { role: "user" | "model"; content: string }[], signal: AbortSignal, maxOutputTokens: number): Promise<string> {
   const opened = await openChatStream(db, userId, messages, signal, false, { instruction, maxOutputTokens, responseMimeType: "application/json" });
@@ -54,6 +71,42 @@ async function ask(db: Db, userId: string, instruction: string, messages: { role
     take(pending);
   } finally { await reader.cancel().catch(() => {}); }
   return out;
+}
+
+/** Garante que package.json declare imports externos detectados nos conteúdos alterados (leve). */
+function ensureDeclaredDeps(changes: { path: string; content: string }[], allFiles: { path: string; content: string }[]): { path: string; content: string } | null {
+  const pkgFile = allFiles.find(f => f.path === "package.json") ?? changes.find(c => c.path === "package.json");
+  if (!pkgFile) return null;
+  let pkg: { dependencies?: Record<string, string>; devDependencies?: Record<string, string>; [k: string]: unknown };
+  try { pkg = JSON.parse(pkgFile.content); } catch { return null; }
+  pkg.dependencies = pkg.dependencies ?? {};
+  pkg.devDependencies = pkg.devDependencies ?? {};
+  const known: Record<string, { version: string; dev?: boolean }> = {
+    "react-router-dom": { version: "^6.28.0" },
+    "@supabase/supabase-js": { version: "^2.48.0" },
+    "lucide-react": { version: "^0.460.0" },
+    "sonner": { version: "^1.7.0" },
+    "clsx": { version: "^2.1.0" },
+    "tailwind-merge": { version: "^2.5.0" },
+    "class-variance-authority": { version: "^0.7.0" },
+    "zod": { version: "^3.23.0" },
+    "@tanstack/react-query": { version: "^5.60.0" },
+    "@tanstack/react-router": { version: "^1.80.0" },
+    "date-fns": { version: "^4.1.0" },
+    "recharts": { version: "^2.13.0" },
+  };
+  const blob = changes.map(c => c.content).join("\n");
+  let changed = false;
+  for (const [name, meta] of Object.entries(known)) {
+    const re = new RegExp(`from\\s+["']${name.replace("/", "\\/")}(?:\\/[^"']*)?["']|import\\s*\\(\\s*["']${name.replace("/", "\\/")}["']`);
+    if (!re.test(blob)) continue;
+    if (pkg.dependencies[name] || pkg.devDependencies[name]) continue;
+    if (meta.dev) pkg.devDependencies[name] = meta.version;
+    else pkg.dependencies[name] = meta.version;
+    changed = true;
+  }
+  if (!changed) return null;
+  return { path: "package.json", content: JSON.stringify(pkg, null, 2) + "\n" };
 }
 
 export async function generateProCopilot(
@@ -81,8 +134,14 @@ export async function generateProCopilot(
   } catch (e) { if (e instanceof CopilotProviderError) throw e; }
   const byPath = new Map(visible.map(f => [f.path, f]));
   const ranked = rankCopilotFiles(visible, message, activePath);
-  const order = [...picked.filter(p => byPath.has(p)).map(p => byPath.get(p)!), ...ranked];
-  let budget = 160_000;
+  // Always prefer App.tsx / main entry when present for route integrity
+  const always = ["src/App.tsx", "src/main.tsx", "package.json"].filter(p => byPath.has(p));
+  const order = [
+    ...always.map(p => byPath.get(p)!),
+    ...picked.filter(p => byPath.has(p)).map(p => byPath.get(p)!),
+    ...ranked,
+  ];
+  let budget = 220_000;
   const included = new Map<string, (typeof visible)[number]>();
   for (const f of order) {
     if (included.has(f.path) || !safe(f)) continue;
@@ -92,34 +151,128 @@ export async function generateProCopilot(
     if (included.size >= 40) break;
   }
 
+  const filePayload = [...included.values()].map(f => ({ path: f.path, content: f.content }));
   const req = [...hist, { role: "user" as const, content: JSON.stringify({
     project: project.name, request: redactSecrets(message), paths: paths.slice(0, 3000),
+    files: filePayload,
+  }) }];
+
+  // Fase PLAN: entendimento antes da edição (best-effort; não bloqueia se falhar)
+  let planNote = "";
+  try {
+    const planRaw = await ask(db, userId, PLAN, req, signal, 2_000);
+    const planObj = parseJsonLoose(planRaw) as { goal?: string; impact?: string[]; risks?: string[]; steps?: string[] };
+    if (planObj && typeof planObj === "object") {
+      planNote = [
+        planObj.goal ? `Plano: ${planObj.goal}` : "",
+        Array.isArray(planObj.impact) && planObj.impact.length ? `Impacto: ${planObj.impact.slice(0, 12).join(", ")}` : "",
+        Array.isArray(planObj.risks) && planObj.risks.length ? `Riscos: ${planObj.risks.slice(0, 5).join("; ")}` : "",
+      ].filter(Boolean).join("\n");
+      // Expand included files from plan impact paths when present on disk
+      if (Array.isArray(planObj.impact)) {
+        for (const p of planObj.impact.slice(0, 12)) {
+          const f = byPath.get(p);
+          if (f && !included.has(p) && safe(f) && included.size < 40) included.set(p, f);
+        }
+      }
+    }
+  } catch { /* plan is advisory */ }
+
+  const reqBuild = [...hist, { role: "user" as const, content: JSON.stringify({
+    project: project.name, request: redactSecrets(message), paths: paths.slice(0, 3000),
+    plan: planNote || undefined,
     files: [...included.values()].map(f => ({ path: f.path, content: f.content })),
   }) }];
-  let raw = await ask(db, userId, BUILD, req, signal, 16_000);
+  let raw = await ask(db, userId, BUILD, reqBuild, signal, 16_000);
   let parsed;
   try { parsed = proAnswerSchema.parse(parseJsonLoose(raw)); }
   catch {
     raw = await ask(db, userId, `${BUILD}\nATENÇÃO: a resposta anterior não era JSON válido. Retorne apenas JSON válido.`,
-      [...req, { role: "user", content: JSON.stringify({ previous_output: raw.slice(0, 60_000) }) }], signal, 16_000);
+      [...reqBuild, { role: "user", content: JSON.stringify({ previous_output: raw.slice(0, 60_000) }) }], signal, 16_000);
     try { parsed = proAnswerSchema.parse(parseJsonLoose(raw)); } catch { throw new CopilotParseError("invalid-schema"); }
   }
 
   const notes: string[] = [];
   const changes: CopilotAnswer["changes"] = [];
+  const fullByPath = new Map(files.filter(f => !f.deleted).map(f => [f.path, f]));
+
   for (const c of parsed.changes) {
-    const original = files.find(f => f.path === c.path && !f.deleted) ?? null;
-    if (original && !included.has(c.path)) { notes.push(`Ignorado ${c.path}: arquivo não foi lido.`); continue; }
+    // Prefer full project map over only "included" — removes "arquivo não foi lido" hard block
+    const original = fullByPath.get(c.path) ?? null;
     let content: string;
     try {
       if (c.edits?.length) {
-        if (!original) { notes.push(`Ignorado ${c.path}: edição em arquivo inexistente.`); continue; }
-        content = applyEdits(original.content, c.edits);
-      } else content = c.content ?? "";
-    } catch (e) { notes.push(`Ignorado ${c.path}: ${e instanceof Error ? e.message : "edição inválida"}`); continue; }
-    if (content.length > 80_000 || redactSecrets(content) !== content) { notes.push(`Ignorado ${c.path}: grande demais ou com credencial.`); continue; }
-    changes.push({ path: c.path, content, before: original?.content ?? null, expectedUpdatedAt: original?.updated_at ?? null });
+        if (!original) {
+          // Cannot apply surgical edits without base; skip unless content also provided
+          if (c.content !== undefined) content = c.content;
+          else { notes.push(`Ignorado ${c.path}: edição em arquivo inexistente (forneça content completo para criar).`); continue; }
+        } else {
+          content = applyEditsRobust(original.content, c.edits);
+        }
+      } else {
+        content = c.content ?? "";
+      }
+    } catch (e) {
+      notes.push(`Ignorado ${c.path}: ${e instanceof Error ? e.message : "edição inválida"}`);
+      continue;
+    }
+    if (content.length > 80_000 || redactSecrets(content) !== content) {
+      notes.push(`Ignorado ${c.path}: grande demais ou com credencial.`);
+      continue;
+    }
+    changes.push({
+      path: c.path,
+      content,
+      before: original?.content ?? null,
+      expectedUpdatedAt: original?.updated_at ?? null,
+    });
   }
-  const summary = notes.length ? `${parsed.summary}\n\n**Avisos:**\n${notes.map(n => `- ${n}`).join("\n")}` : parsed.summary;
+
+  // Post-pass: declare missing known deps in package.json when changes introduce imports
+  const depFix = ensureDeclaredDeps(
+    changes.map(c => ({ path: c.path, content: c.content })),
+    visible.map(f => ({ path: f.path, content: f.content })),
+  );
+  if (depFix) {
+    const existingPkg = changes.find(c => c.path === "package.json");
+    const originalPkg = fullByPath.get("package.json");
+    if (existingPkg) existingPkg.content = depFix.content;
+    else {
+      changes.push({
+        path: "package.json",
+        content: depFix.content,
+        before: originalPkg?.content ?? null,
+        expectedUpdatedAt: originalPkg?.updated_at ?? null,
+      });
+      notes.push("package.json atualizado com dependências detectadas nos arquivos alterados.");
+    }
+  }
+
+  // Soft route integrity note (does not block)
+  const appChange = changes.find(c => c.path === "src/App.tsx" || c.path === "src/App.jsx");
+  if (appChange && /from\s+["']\.\/pages\//.test(appChange.content)) {
+    const pageImports = [...appChange.content.matchAll(/from\s+["'](\.\/pages\/[^"']+)["']/g)].map(m => m[1]!);
+    for (const spec of pageImports) {
+      const base = spec.replace(/^\.\//, "src/");
+      const candidates = [`${base}.tsx`, `${base}.ts`, `${base}.jsx`, `${base}/index.tsx`];
+      const exists = candidates.some(p => fullByPath.has(p) || changes.some(ch => ch.path === p));
+      if (!exists) notes.push(`Aviso de rota: ${spec} importado em App.tsx sem arquivo correspondente nesta entrega.`);
+    }
+  }
+
+  // Integridade pós-edição: imports + sintaxe no snapshot+changes
+  const integrity = validateEditBatch(
+    visible.map(f => ({ path: f.path, content: f.content })),
+    changes.map(c => ({ path: c.path, content: c.content })),
+  );
+  const report = buildValidationReport(integrity);
+  if (!report.ok || report.warnings.length) {
+    notes.push(report.summary);
+  } else {
+    notes.push("Validação local: ok (imports + sintaxe)");
+  }
+
+  let summary = notes.length ? `${parsed.summary}\n\n**Avisos:**\n${notes.map(n => `- ${n}`).join("\n")}` : parsed.summary;
+  if (planNote) summary = `${planNote}\n\n${summary}`;
   return { summary, changes, coverage: { read: included.size, total: visible.length } };
 }

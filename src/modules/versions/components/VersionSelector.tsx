@@ -39,12 +39,12 @@ export function VersionSelector() {
   }, [selected, isPro, isSystem, is199, data, current]);
 
   const activeName = is199
-    ? "WLC 1.9.9 Copilot"
+    ? "Copilot Builder"
     : isPro
-    ? "WLC 1.7.1 Lite"
+    ? "Scale Editor"
     : isSystem
-    ? "WLC 1.1.0 Developers"
-    : (current?.name ?? "WLC 1.5.6 Prompt Maker");
+    ? "Bypass"
+    : (current?.name ?? "Prompt Maker");
 
   return (
     <DropdownMenu>
@@ -61,8 +61,8 @@ export function VersionSelector() {
         {/* WLC 1.5.6 Prompt Maker */}
         <DropdownMenuItem onSelect={() => setSelectedVersion(null)}>
           <span className="flex-1">
-            <span className="block font-mono text-sm">WLC 1.5.6</span>
-            <span className="block text-xs text-muted-foreground">Prompt Maker · Otimizador de Prompts</span>
+            <span className="block font-mono text-sm">Prompt Maker</span>
+            <span className="block text-xs text-muted-foreground">WLC 1.5.6 Lite</span>
           </span>
           {!current && !isPro && !isSystem && !is199 && <Check />}
         </DropdownMenuItem>
@@ -70,8 +70,8 @@ export function VersionSelector() {
         {/* WLC 1.7.1 Lite */}
         <DropdownMenuItem onSelect={() => setSelectedVersion(PRO_SLUG)}>
           <span className="flex-1">
-            <span className="block font-mono text-sm">WLC 1.7.1</span>
-            <span className="block text-xs text-muted-foreground">Lite · Editor de Projetos & Ajustes Cirúrgicos</span>
+            <span className="block font-mono text-sm">Scale Editor</span>
+            <span className="block text-xs text-muted-foreground">WLC 1.7.1 Lite</span>
           </span>
           {isPro && <Check />}
         </DropdownMenuItem>
@@ -79,8 +79,8 @@ export function VersionSelector() {
         {/* WLC 1.1.0 Developers */}
         <DropdownMenuItem onSelect={() => setSelectedVersion(SYSTEM_SLUG)}>
           <span className="flex-1">
-            <span className="block font-mono text-sm">WLC 1.1.0</span>
-            <span className="block text-xs text-muted-foreground">Developers · Terminal Cognitivo Avançado</span>
+            <span className="block font-mono text-sm">Bypass</span>
+            <span className="block text-xs text-muted-foreground">WLC 1.1.0 Lite</span>
           </span>
           {isSystem && <Check />}
         </DropdownMenuItem>
@@ -88,8 +88,8 @@ export function VersionSelector() {
         {/* WLC 1.9.9 Copilot */}
         <DropdownMenuItem onSelect={() => setSelectedVersion(COPILOT_199_SLUG)}>
           <span className="flex-1">
-            <span className="block font-mono text-sm">WLC 1.9.9</span>
-            <span className="block text-xs text-muted-foreground">Copilot · Construtor Completo do Zero</span>
+            <span className="block font-mono text-sm">Copilot Builder</span>
+            <span className="block text-xs text-muted-foreground">WLC 1.9.9 Lite</span>
           </span>
           {is199 && <Check />}
         </DropdownMenuItem>

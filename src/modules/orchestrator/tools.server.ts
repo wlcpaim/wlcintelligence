@@ -1,14 +1,19 @@
 // Execução real das ferramentas dos bots, sempre como o próprio usuário (RLS).
 import type { Db } from "@/modules/integrations/core/runs.server";
-import { getCreds, getDeployment, listAllDeployments } from "@/modules/integrations/cloudflare/services/cloudflare.server";
+import { getCreds, getDbEnv, getDeployment, listAllDeployments } from "@/modules/integrations/cloudflare/services/cloudflare.server";
 import { redactSecrets } from "@/modules/integrations/github/services/repository.server";
 import type { AgentRole } from "./orchestrator";
 import { canWrite, type ToolName } from "./tools";
+
+/** Claims de escrita da sessão multi-bot (path → role). Limpar via clearWriteClaims entre orquestrações. */
+const writeClaims = new Map<string, import("./orchestrator").AgentRole>();
+export function clearWriteClaims() { writeClaims.clear(); }
+export function getWriteClaims() { return new Map(writeClaims); }
 import { getToken } from "@/modules/integrations/github/services/connection.server";
 import { commitPending } from "@/modules/code/services/commit.server";
 import { ensureRunner, runCommand, runLogs, runStatus } from "./runner-actions.server";
 import { checkCommand } from "./runner-commands";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { provisionGeneratedDatabase } from "@/modules/engineering/generated-app.server";
 
 export interface Workspace { db: Db; userId: string; projectId: string | null; projectName: string | null }
 
@@ -37,6 +42,9 @@ export async function runTool(ws: Workspace, role: AgentRole, tool: ToolName, ar
       const path = args["path"] ?? "";
       const content = args["content"] ?? "";
       if (!canWrite(role, path)) return `Bloqueado: ${path} está fora da área de trabalho deste bot.`;
+      const claimed = writeClaims.get(path);
+      if (claimed && claimed !== role) return `Bloqueado: ${path} já foi reivindicado pelo bot ${claimed} nesta sessão.`;
+      writeClaims.set(path, role);
       if (redactSecrets(content) !== content) return "Bloqueado: o conteúdo contém credencial.";
       const pid = needProject();
       const now = new Date().toISOString();
@@ -53,17 +61,17 @@ export async function runTool(ws: Workspace, role: AgentRole, tool: ToolName, ar
       return cut(JSON.stringify(data));
     }
     case "apply_migration": {
-      let sql = args["sql"] ?? "";
-      const path = args["path"];
-      if (!sql && path) {
-        const { data } = await db.from("code_files").select("content").eq("project_id", needProject()).eq("user_id", userId).eq("path", path).eq("deleted", false).maybeSingle();
-        if (!data) return `Erro: arquivo de migração ${path} não encontrado no projeto.`;
-        sql = data.content;
+      const pid = needProject();
+      if (args['sql']) return "SQL arbitrário bloqueado. Entregue database.manifest.json para provisionar somente as tabelas deste app.";
+      const files = [];
+      for (let from = 0; ; from += 1000) {
+        const r = await db.from("code_files").select("path,content").eq("project_id", pid).eq("user_id", userId).eq("deleted", false).order("id").range(from, from + 999);
+        if (r.error || !r.data) throw new Error("Não foi possível ler o manifesto do projeto.");
+        files.push(...r.data);
+        if (r.data.length < 1000) break;
       }
-      if (!sql) return "Erro: nenhum SQL fornecido para migração.";
-      const { data, error } = await supabaseAdmin.rpc("exec_migration", { p_sql: sql });
-      if (error) throw new Error(`Falha ao aplicar migração: ${error.message}`);
-      return `Migração aplicada com sucesso. Resultado: ${JSON.stringify(data)}`;
+      const result = await provisionGeneratedDatabase(db, pid, files, await getDbEnv(db, userId));
+      return `Banco do app verificado: ${result.tables} tabela(s).`;
     }
     case "list_deploys": {
       const { token, accountId } = await getCreds(db, userId);

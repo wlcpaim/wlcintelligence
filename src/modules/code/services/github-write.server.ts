@@ -90,13 +90,16 @@ export async function loadEditableRepo(token: string, repo: string) {
 export interface Change { path: string; content: string | null } // null = excluir
 
 /** Um único commit atômico com todas as alterações, na ordem em que foram feitas. */
-export async function commitChanges(token: string, repo: string, branch: string, message: string, changes: Change[]) {
+export async function commitChanges(token: string, repo: string, branch: string, message: string, changes: Change[], expectedBase?: string | null) {
   const enc = (s: string) => Buffer.from(s, "utf8").toString("base64");
   let parent: string | null = null;
   try {
     parent = (await ghCall<{ object: { sha: string } }>(token, "GET", `/repos/${repo}/git/ref/heads/${encodeURIComponent(branch)}`)).object.sha;
   } catch (e) {
     if (!(e instanceof GithubError && (e.status === 409 || e.status === 404))) throw e;
+  }
+  if (expectedBase !== undefined && parent !== expectedBase) {
+    throw new Error("A branch mudou no GitHub; sincronize o projeto antes de enviar. Nenhum arquivo remoto foi sobrescrito.");
   }
   let pending = changes;
   if (!parent) {
@@ -117,6 +120,6 @@ export async function commitChanges(token: string, repo: string, branch: string,
   }
   const newTree = await ghCall<{ sha: string }>(token, "POST", `/repos/${repo}/git/trees`, { base_tree: base.tree.sha, tree });
   const commit = await ghCall<{ sha: string }>(token, "POST", `/repos/${repo}/git/commits`, { message, tree: newTree.sha, parents: [parent] });
-  await ghCall(token, "PATCH", `/repos/${repo}/git/refs/heads/${encodeURIComponent(branch)}`, { sha: commit.sha });
+  await ghCall(token, "PATCH", `/repos/${repo}/git/refs/heads/${encodeURIComponent(branch)}`, { sha: commit.sha, force: false });
   return commit.sha;
 }

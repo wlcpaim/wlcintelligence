@@ -23,7 +23,7 @@ it("rejeita plano cujas tarefas não apontam para nenhum especialista existente"
 it("plano de reserva é válido pelo próprio esquema e mantém o pedido como intent", () => {
   const fb = fallbackArchitectPlan("x".repeat(300));
   expect(fb.intent).toHaveLength(200);
-  expect(parseArchitectPlan(JSON.stringify(fb))?.distribution.map((d) => d.role)).toEqual(["design", "frontend", "backend", "devops"]);
+  expect(parseArchitectPlan(JSON.stringify(fb))?.distribution.map((d) => d.role)).toEqual(["design", "frontend", "backend", "dba", "devops"]);
   expect(fb.structure.files).toEqual(expect.arrayContaining(["package.json", "tsconfig.json", "index.html", "src/main.tsx"]));
 });
 

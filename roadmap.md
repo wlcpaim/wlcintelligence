@@ -1,18 +1,23 @@
 # Roadmap
 
-- [ ] Atualizar INTEGRATIONS_MASTER_KEY no novo remix pelo formulário seguro
+- [x] Fellow hardening: admin nested routes, anti-stub detectors, prompt rules
+- [x] Update INTEGRATIONS_MASTER_KEY secret
 
-- [ ] WLC 1.9.9: contratos reais, análise sintática e bootstrap visual por versão de Tailwind
-- [ ] WLC 1.9.9: recuperação cirúrgica de deploy com limite, backup e verificação do novo commit
-- [ ] Validar regressões e publicar relatório honesto das verificações e limitações
+## Auditoria prática solicitada
 
-- [x] Smart email-first sign-in (OTP + auto password)
-- [x] Update INTEGRATIONS_MASTER_KEY secret value (user enters via secure form)
-- [ ] Testar 3 projetos (SaaS, Loja, PDV): gerar, aplicar, commit, deploy — bloqueado: remix atual sem conta cadastrada nem conexões; SaaS anterior gerou 17 arquivos e revelou falhas parciais de QA/DevOps, sem deploy validado
-- [x] Atualizar o segredo INTEGRATIONS_MASTER_KEY (concluído anteriormente)
-- [x] Corrigir recuperação segura de respostas interrompidas, commits grandes, SPA e projeto ausente no chat
-- [x] Executar regressões (204 testes aprovados) e verificar criação/salvamento no chat autenticado antes do novo remix
-- [x] Atualizar novamente INTEGRATIONS_MASTER_KEY após remix (salvo pelo formulário seguro)
+- [x] Verificar acesso real ao chat no navegador: redireciona para login, sem erros de execução observados.
+- [ ] Acessar a sessão atual do usuário — bloqueado: acesso automático recusado; aguarda login na prévia.
+- [ ] Criar SaaS, PDV, loja virtual, blog e fórum pelo chat e conferir os respectivos repositórios GitHub.
+- [ ] Exercitar Prompt Maker, Copilot Creator e editor 1.7.1; avaliar 1.1.0 se disponível.
+- [ ] Cruzar respostas, arquivos persistidos, commits e logs de execução de cada projeto.
+- [ ] Emitir auditoria final de evolução e otimização baseada nos fluxos realmente executados.
 
-- [x] Update INTEGRATIONS_MASTER_KEY after remix
-- [x] WLC 1.9.9: collect missing files with the least-used API + local import validator
+- [x] Update secret INTEGRATIONS_MASTER_KEY (remix setup)
+- [x] Update secret INTEGRATIONS_MASTER_KEY again after the new remix request.
+
+## Correção do sistema de criação
+- [ ] Provisionar tabelas isoladas por app antes do deploy, sem executar SQL arbitrário no banco da plataforma.
+- [ ] Primeiro acesso autenticado e verificado assume admin no servidor; demais acessos não ganham admin.
+- [ ] Sincronizar geração validada com GitHub e corrigir rastreamento de commits e edições concorrentes.
+- [ ] Aplicar o contrato compartilhado em Chat, Copilot, editor, publicação e recuperação.
+- [ ] Rodar testes de regressão e registrar limites da verificação prática.

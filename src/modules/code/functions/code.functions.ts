@@ -158,3 +158,41 @@ export const pullRepoProject = createServerFn({ method: "POST" })
       return { ok: true, count: loaded.files.length };
     } catch (e) { return { ok: false, error: msg(e) }; }
   });
+
+/** Remove projeto do histórico (arquivos, backups e registro). Não apaga o repositório no GitHub. */
+export const deleteProject = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ projectId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; error: string }> => {
+    try {
+      const db = context.supabase;
+      const { data: p, error } = await db
+        .from("code_projects")
+        .select("id")
+        .eq("id", data.projectId)
+        .eq("user_id", context.userId)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!p) return { ok: false, error: "Projeto não encontrado." };
+
+      // Ordem: filhos → pai (evita FK quebrada quando não há CASCADE)
+      await db.from("code_files").delete().eq("project_id", data.projectId).eq("user_id", context.userId);
+      await db.from("code_project_backups").delete().eq("project_id", data.projectId).eq("user_id", context.userId);
+      try {
+        await db.from("project_commit_leases").delete().eq("project_id", data.projectId);
+      } catch {
+        /* tabela pode não existir em ambientes antigos */
+      }
+
+      const { error: delErr } = await db
+        .from("code_projects")
+        .delete()
+        .eq("id", data.projectId)
+        .eq("user_id", context.userId);
+      if (delErr) throw new Error(delErr.message);
+
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: msg(e) };
+    }
+  });

@@ -9,7 +9,7 @@ async function copilotErrorMessage(error: unknown): Promise<string> {
   const { CopilotParseError } = await import("../copilot");
   const { CopilotProviderError } = await import("../services/copilot.server");
   if (error instanceof DOMException && error.name === "TimeoutError")
-    return "A resposta demorou demais. Tente um pedido mais focado.";
+    return "O time passou do tempo limite. Seu prompt foi preservado: envie de novo ou divida em partes menores.";
   if (error instanceof DOMException && error.name === "AbortError") return "Pedido interrompido.";
   if (error instanceof CopilotParseError) return "A IA respondeu, mas não propôs alterações válidas de código. Tente reformular o pedido.";
   if (error instanceof CopilotProviderError) return `Erro na chave de API configurada: ${error.message}`;
@@ -34,14 +34,15 @@ export const askCopilot = createServerFn({ method: "POST" })
       const signal = AbortSignal.any([getRequest().signal, AbortSignal.timeout(90_000)]);
       if (data.v199) {
         // Time completo (Arquiteto → especialistas → Análise): 4 etapas em sequência, precisa de mais tempo.
-        const team = AbortSignal.any([getRequest().signal, AbortSignal.timeout(300_000)]);
+        const { TEAM_HARD_LIMIT_MS, TEAM_SOFT_BUDGET_MS } = await import("@/modules/v199/core/budget");
+        const team = AbortSignal.any([getRequest().signal, AbortSignal.timeout(TEAM_HARD_LIMIT_MS)]);
         if (data.diagnose) {
           // Diagnóstico de Deploy: build/testes no WLC Runner (GitHub Actions) + correção proposta.
           const { generateDiagnosticsCopilot } = await import("@/modules/v199/services/copilot-diagnostics.server");
           return { ok: true, answer: await generateDiagnosticsCopilot(context.supabase, context.userId, data.projectId, team) };
         }
         const { generateTeamCopilot } = await import("@/modules/v199/services/copilot-team.server");
-        return { ok: true, answer: await generateTeamCopilot(context.supabase, context.userId, data.projectId, data.message, data.activePath, data.history, team) };
+        return { ok: true, answer: await generateTeamCopilot(context.supabase, context.userId, data.projectId, data.message, data.activePath, data.history, team, Date.now() + TEAM_SOFT_BUDGET_MS) };
       }
       if (data.pro) {
         const { generateProCopilot } = await import("../services/pro-copilot.server");
@@ -91,4 +92,31 @@ export const applyCopilotFile = createServerFn({ method: "POST" })
     const result = await query.select("id,path,content,base_content,deleted,updated_at").single();
     if (result.error || !result.data) return { ok: false as const, error: "Arquivo não aplicado. Ele pode ter sido alterado em outra janela; peça uma nova revisão." };
     return { ok: true as const, file: result.data };
+  });
+
+/** Pós-aplicação: validação local + typecheck remoto opcional (GitHub Runner). */
+export const validateAfterCopilotApply = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({
+    projectId: z.string().uuid(),
+    withRemote: z.boolean().optional(),
+  }).parse(input))
+  .handler(async ({ data, context }) => {
+    try {
+      const { validateAfterApply } = await import("../services/post-edit-validate.server");
+      const signal = AbortSignal.any([getRequest().signal, AbortSignal.timeout(data.withRemote ? 120_000 : 30_000)]);
+      const report = await validateAfterApply(
+        context.supabase,
+        context.userId,
+        data.projectId,
+        signal,
+        { withRemote: data.withRemote ?? false },
+      );
+      return { ok: true as const, report };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : "Falha na validação pós-edição.",
+      };
+    }
   });

@@ -22,3 +22,22 @@ describe("WLC PRO bot tools", () => {
     expect(parseBotStep('{"tool":"inspect_schema","args":{}}', "dba")).toEqual({ kind: "tool", tool: "inspect_schema", args: {} });
   });
 });
+
+import { claimWritePaths } from "./tools";
+
+describe("claimWritePaths", () => {
+  it("gives first claimant ownership and lists conflicts", () => {
+    const { owner, conflicts } = claimWritePaths([
+      { role: "frontend", paths: ["src/components/Button.tsx", "src/routes/index.tsx"] },
+      { role: "backend", paths: ["src/services/api.ts", "src/components/Button.tsx"] },
+    ]);
+    expect(owner.get("src/components/Button.tsx")).toBe("frontend");
+    expect(owner.get("src/services/api.ts")).toBe("backend");
+    expect(conflicts.some(c => c.path === "src/components/Button.tsx")).toBe(true);
+  });
+  it("rejects paths outside write area", () => {
+    expect(canWrite("frontend", "src/services/secret.ts")).toBe(false);
+    const { owner } = claimWritePaths([{ role: "frontend", paths: ["src/services/secret.ts"] }]);
+    expect(owner.has("src/services/secret.ts")).toBe(false);
+  });
+});

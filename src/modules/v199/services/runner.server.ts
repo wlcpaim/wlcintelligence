@@ -1,9 +1,10 @@
 import { sanitizeChanges } from "../core/sanitize";
-import { inspectArchitecture } from "../core/architecture";
+import { functionalGapIssues, inspectArchitecture } from "../core/architecture";
 import { inspectContracts } from "../core/contracts";
 import { repairProjectQuality } from "./quality.server";
 import { chunk, findMissingLocalImports, leastUsedKeyId, recordUsage, type KeyUsage, type MissingImport } from "../core/gaps";
 import { isSmallTalk, SMALL_TALK_REPLY } from "../core/intent";
+import { isPastDeadline, phaseSignal } from "../core/budget";
 /**
  * WLC 1.9.9 Hybrid Team — Runner paralelo em segundo plano.
  *
@@ -22,6 +23,7 @@ import { openChatStream } from "@/modules/integrations/gemini/services/chat-stre
 import { textFromGeminiChunk } from "@/services/gemini.server";
 import {
   SPECIALISTS,
+  WLC_PRO_ENGINEERING_STANDARD,
   V199_ARCHITECT_INSTRUCTION,
   V199_ANTI_SPAM_RULE,
   V199_PIPELINE_INSTRUCTION,
@@ -30,6 +32,7 @@ import {
 import { checkDualKeys, keyForRole, type DualKeyStatus } from "../core/keys";
 import { listKeys } from "@/modules/integrations/gemini/services/keys.server";
 import { applyTeamChanges } from "./apply.server";
+import { syncGeneratedProject } from "@/modules/code/services/sync-generated.server";
 import { openWorkspace } from "@/modules/orchestrator/tools.server";
 import {
   normalizeDistribution,
@@ -80,6 +83,8 @@ export interface TeamOptions {
   existingPaths?: string[];
   /** Destino fixo (chat): projectId null cria um projeto novo e isolado. */
   workspace?: { projectId: string | null; projectName: string | null };
+  /** Prazo suave (epoch ms): depois dele as fases de melhoria são puladas e o resultado volta. */
+  deadline?: number;
 }
 
 const EXISTING_RULE =
@@ -304,7 +309,9 @@ function buildSpecialistInstruction(role: SpecialistRole, task: string, plan: Pi
     ? item.connects_to.map((x) => `  - ${x}`).join("\n")
     : "  - respeite os contratos e integrações do plano";
   return `
-Você é o Bot **${spec.name}** da WLC 1.9.9 Hybrid Team.
+Você é o Bot **${spec.name}** da WLC IA PRO (padrão Fellow / Staff).
+${WLC_PRO_ENGINEERING_STANDARD}
+
 Missão geral: ${spec.mission}
 Linguagens: ${spec.languages}
 
@@ -430,7 +437,7 @@ Os especialistas já entregaram o código. Sua missão:
 1. Resolver TODOS os problemas listados em \`static_issues\` e \`missing_bootstrap_files\` (ex.: criar \`tsconfig.json\`, \`index.html\`, \`src/main.tsx\` ausentes e adicionar dependências importadas que faltam em \`package.json\`).
 2. Revisar inconsistências entre \`config_files\`, \`all_paths\` e \`preview\` (imports quebrados, nomes divergentes, falta de Mobile First, etc.).
 3. Gerar correções cirúrgicas (devolva o conteúdo COMPLETO de cada arquivo criado/corrigido).
-4. Não criar feature nova de produto — apenas integridade de build, runtime e qualidade.
+4. Não inventar features fora do pedido. Porém issues HOLLOW_ADMIN, UNLINKED_SCHEMA, BROKEN_ROUTER_WILDCARD, UNDECLARED_ROUTE_TARGET e UNCONSUMED_SERVICE em \`static_issues\` são entregas incompletas: implemente o service da entidade (list/create/update/remove com seed) e a página de admin funcional (tabela, formulário, excluir com confirmação), e troque o roteamento do admin por layout aninhado com <Outlet/>. Para cada destino de link sem rota, crie a página real e registre a rota; nunca apague o link.
 
 ${V199_ANTI_SPAM_RULE}
 
@@ -564,6 +571,61 @@ Responda SOMENTE JSON: {"summary":"...","changes":[{"path":"...","content":"arqu
   return healed;
 }
 
+// ─── completude funcional (anti-vitrine) ─────────────────────────────────────
+
+/**
+ * Fecha a lacuna entre Backend e Frontend gerados em paralelo: cria as páginas que os
+ * botões/menus já apontam, registra as rotas e liga os services às telas e ao /admin.
+ */
+async function runProductCompletion(
+  db: Db, userId: string, plan: PipelinePlan, request: string, opts: TeamOptions,
+  results: SpecialistResult[], signal: AbortSignal, onEvent: TeamEvent, keyStatus: DualKeyStatus,
+): Promise<SpecialistResult | null> {
+  const snap = mergeProjectSnapshot(opts, results);
+  const gaps = functionalGapIssues(snap.files);
+  if (!gaps.length) return null;
+  onEvent(`🧱 **Completude funcional**: ${gaps.length} lacuna(s) — ${gaps.slice(0, 3).map((g) => g.code).join(", ")}. Ligando telas, rotas e dados…`);
+  const services = snap.files.filter((f) => /^src\/services\//.test(f.path)).slice(0, 6);
+  const context = snap.files
+    .filter((f) => /^src\/(App|main)\.(t|j)sx$/.test(f.path) || /^src\/(pages|routes|layouts)\//.test(f.path) || /^src\/(types|lib)\//.test(f.path))
+    .slice(0, 14);
+  const instruction = `
+Você é o Bot **Completude Funcional** da WLC 1.9.9.
+O projeto compila, mas é uma VITRINE: há botões/menus que levam a páginas inexistentes, services de dados que nenhuma tela usa e/ou admin sem dados.
+Sua missão é transformar em PRODUTO FUNCIONAL, resolvendo TODAS as lacunas em \`gaps\`:
+1. UNDECLARED_ROUTE_TARGET: crie a página real para cada destino e registre a rota em src/App.tsx (admin em layout aninhado com <Outlet/>, <Route index> e rotas filhas). Nunca remova o link para "resolver".
+2. UNCONSUMED_SERVICE / UNLINKED_SCHEMA: as páginas operacionais (ex.: PDV, dashboard, agenda) e de admin DEVEM importar os exports reais do service (veja export_manifest) e usar list/create/update/remove com estados loading/vazio/erro.
+3. HOLLOW_ADMIN: cada página de admin tem tabela com dados do service, formulário criar/editar e excluir com confirmação.
+4. Proteja /admin com guard que lê a mesma constante de storage do Login; mantenha path="*".
+Devolva src/App.tsx COMPLETO e cada página nova/alterada COMPLETA. Use só pacotes já declarados em package.json.
+
+${V199_ANTI_SPAM_RULE}
+
+Responda SOMENTE JSON: {"summary":"...","changes":[{"path":"...","content":"arquivo completo"}]}
+`.trim();
+  try {
+    const raw = await askBot(db, userId, instruction, JSON.stringify({
+      original_request: request.slice(0, 6_000),
+      intent: plan.intent,
+      routes: plan.contracts.routes,
+      design_tokens: plan.contracts.design_tokens,
+      gaps: gaps.slice(0, 20).map((g) => ({ code: g.code, path: g.path, message: g.message, fix: g.fix })),
+      export_manifest: inspectContracts(snap.files).manifest,
+      all_paths: snap.paths,
+      services: services.map((f) => ({ path: f.path, content: f.content.slice(0, 8_000) })),
+      context_files: context.map((f) => ({ path: f.path, content: f.content.slice(0, 6_000) })),
+    }), signal, 16_000, leastUsedKeyId(keyStatus, keyStatus.usage ?? new Map(), 20_000), keyStatus.usage);
+    const parsed = specialistAnswerSchema.parse(parseJsonLoose(raw, true));
+    const after = functionalGapIssues(mergeProjectSnapshot(opts, [...results, { role: "frontend", ok: true, summary: "", changes: parsed.changes }]).files);
+    onEvent(`${after.length < gaps.length ? "✅" : "⚠️"} Completude funcional: ${parsed.changes.length} arquivo(s); lacunas ${gaps.length} → ${after.length}.`);
+    return { role: "frontend", ok: !parsed.recovered && after.length === 0, summary: parsed.summary || "Telas e rotas ligadas aos dados", changes: parsed.changes };
+  } catch (e) {
+    signal.throwIfAborted();
+    onEvent(`⚠️ Completude funcional falhou: ${(e instanceof Error ? e.message : "erro").slice(0, 120)}`);
+    return null;
+  }
+}
+
 // ─── consolidação ────────────────────────────────────────────────────────────
 
 function consolidate(results: SpecialistResult[]): TeamChange[] {
@@ -666,7 +728,12 @@ export async function runHybridTeam(
 
   // 2b. Coleta de faltantes (bots interrompidos / imports quebrados) com as APIs menos usadas
   const partialRoles = new Set<SpecialistRole>(allResults.filter((r) => !r.ok).map((r) => r.role));
-  allResults.push(...await runGapHealer(db, userId, plan, request, opts, allResults, partialRoles, signal, onEvent, dual));
+  if (isPastDeadline(opts.deadline)) onEvent("⏱️ Tempo do time quase no limite — pulando coleta de faltantes.");
+  else allResults.push(...await runGapHealer(db, userId, plan, request, opts, allResults, partialRoles, phaseSignal(signal, opts.deadline), onEvent, dual));
+
+  // 2c. Completude funcional: essencial (usa o sinal principal, não o prazo suave).
+  const completion = await runProductCompletion(db, userId, plan, request, opts, allResults, signal, onEvent, dual);
+  if (completion) allResults.push(completion);
 
   // 3. Fase 3 em PARALELO
   const phase2Snapshot = mergeProjectSnapshot(opts, allResults);
@@ -692,11 +759,14 @@ export async function runHybridTeam(
   }
 
   const phase3Opts = buildPhase3Options(opts, allResults);
-  if (phase3.length) {
+  if (phase3.length && isPastDeadline(opts.deadline)) {
+    onEvent("⏱️ Tempo do time quase no limite — QA/DevOps pulados; bootstrap determinístico cobre o básico.");
+  } else if (phase3.length) {
+    const p3Signal = phaseSignal(signal, opts.deadline);
     onEvent(`⚡ Disparando **${phase3.length}** bot(s) de qualidade/ops em paralelo…`);
     const settled = await Promise.allSettled(
       phase3.map((d) =>
-        runSpecialist(db, userId, d.role, d.task, plan, request, signal, onEvent, dual, phase3Opts),
+        runSpecialist(db, userId, d.role, d.task, plan, request, p3Signal, onEvent, dual, phase3Opts),
       ),
     );
     for (const s of settled) {
@@ -705,13 +775,22 @@ export async function runHybridTeam(
   }
 
   // 4. Análise de Código (depois que todos terminaram)
-  const analysis = await runCodeAnalyst(db, userId, plan, allResults, signal, onEvent, dual, opts);
-  allResults.push(analysis);
+  const analysis = isPastDeadline(opts.deadline)
+    ? (onEvent("⏱️ Tempo do time quase no limite — Análise de Código pulada."), null)
+    : await runCodeAnalyst(db, userId, plan, allResults, phaseSignal(signal, opts.deadline), onEvent, dual, opts);
+  if (analysis) allResults.push(analysis);
   // 4b. Garantia final: DevOps/Análise podem ter criado imports novos (ex.: main.tsx → páginas)
   const partialLate = new Set<SpecialistRole>(allResults.filter((r) => !r.ok && SPECIALISTS[r.role]?.phase === 3).map((r) => r.role));
-  allResults.push(...await runGapHealer(db, userId, plan, request, opts, allResults, partialLate, signal, onEvent, dual));
+  if (!isPastDeadline(opts.deadline)) allResults.push(...await runGapHealer(db, userId, plan, request, opts, allResults, partialLate, phaseSignal(signal, opts.deadline), onEvent, dual));
 
-  const quality = await repairProjectQuality(db, userId, sanitizeChanges(mergeProjectSnapshot(opts, allResults).files), signal, onEvent, dual.usage);
+  // 4c. Segunda passada de completude se a análise/DevOps reabriram lacunas.
+  if (!isPastDeadline(opts.deadline) && functionalGapIssues(mergeProjectSnapshot(opts, allResults).files).length) {
+    const again = await runProductCompletion(db, userId, plan, request, opts, allResults, phaseSignal(signal, opts.deadline), onEvent, dual);
+    if (again) allResults.push(again);
+  }
+
+  const quality = await repairProjectQuality(db, userId, sanitizeChanges(mergeProjectSnapshot(opts, allResults).files), phaseSignal(signal, opts.deadline), onEvent, dual.usage, !isPastDeadline(opts.deadline));
+  signal.throwIfAborted(); // cancelamento do usuário nunca grava resultado
   if (quality.changes.length) allResults.push({ role: "code_analyst", ok: quality.issues.length === 0, summary: "Correções de contratos e bootstrap visual", changes: quality.changes });
   const changes = sanitizeChanges(consolidate(allResults));
   const finalSnapshot = mergeProjectSnapshot(opts, [{ role: "code_analyst", ok: true, summary: "", changes }]);
@@ -743,6 +822,14 @@ export async function runHybridTeam(
     onEvent(`💾 Consolidação final: ${finalApply.written.length} arquivo(s) no projeto${finalApply.projectName ? ` "${finalApply.projectName}"` : ""}`);
   } else if (!finalApply.projectId) {
     onEvent(`⚠️ Nenhum projeto em Code — os bots geraram código mas não puderam injetar. Abra/crie um projeto.`);
+  }
+  if (finalApply.projectId && finalApply.written.length && !finalApply.skipped.length && !qualityIssues.length) {
+    try {
+      const synced = await syncGeneratedProject(db, userId, finalApply.projectId);
+      if (synced) onEvent(`GitHub confirmou ${synced.sha.slice(0, 7)}: ${synced.count} arquivo(s) enviados sem exigir Deploy.`);
+    } catch (error) {
+      onEvent(`Arquivos preservados; sincronização pendente: ${error instanceof Error ? error.message : "GitHub indisponível"}`);
+    }
   }
   onEvent(`🏁 **Pipeline finalizado** — ${changes.length} arquivo(s) · ${finalApply.written.length} gravado(s) no disco do projeto`);
   return { plan, results: allResults, analysis, changes, summary, qualityIssues, projectId: finalApply.projectId, projectName: finalApply.projectName };

@@ -11,6 +11,8 @@ export function checkCommand(cmd: string): string | null {
   if (c.length > 500) return "Comando longo demais.";
   if (/[`\n\r]|\$\(|\$\{?[A-Z_]*(TOKEN|SECRET|KEY)/i.test(c)) return "Comando bloqueado: substituição de shell ou leitura de segredo.";
   if (/(^|\s)(curl|wget|nc|ssh|scp|env|printenv|sudo|rm\s+-rf\s+\/)(\s|$)/.test(c)) return "Comando bloqueado: rede/segredos/destrutivo.";
+  if (/\bbash\b.*\s-c\b/.test(c) || /\bsh\b.*\s-c\b/.test(c)) return "Comando bloqueado: shell -c aninhado.";
+  if (/(^|\s)(chmod|chown|mkfs|dd)(\s|$)/.test(c)) return "Comando bloqueado: operação de sistema sensível.";
   for (const part of c.split(/&&|\|\||;|\|/)) {
     const bin = part.trim().split(/\s+/)[0] ?? "";
     if (!ALLOWED.has(bin)) return `Comando não permitido: ${bin || "(vazio)"}. Permitidos: ${[...ALLOWED].join(", ")}.`;

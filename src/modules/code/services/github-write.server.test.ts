@@ -4,6 +4,15 @@ import { commitChanges } from "./github-write.server";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("não escreve na branch quando o commit remoto mudou", async () => {
+  const request = vi.fn().mockResolvedValue(Response.json({ object: { sha: "new-parent" } }));
+  vi.stubGlobal("fetch", request);
+  await expect(commitChanges("test-token", "owner/app", "main", "test", [{ path: "src/a.ts", content: "updated" }], "old-parent"))
+    .rejects.toThrow("branch mudou");
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(request.mock.calls[0]?.[1]?.method).toBe("GET");
+});
+
 it.each([true, false])("envia arquivo Unicode grande sem estouro de pilha (repo vazio: %s)", async (empty) => {
   const source = 'export const texto = "ação 🛒";\n'.repeat(20_000);
   const uploaded: string[] = [];

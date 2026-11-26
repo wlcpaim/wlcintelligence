@@ -1,3 +1,4 @@
+import wlcLogo from "@/assets/wlc-logo.png.asset.json";
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown } from "lucide-react";
 import type { ChatMessage } from "@/types/chat";
@@ -26,7 +27,8 @@ export function MessageList({ messages, pending }: { messages: ChatMessage[]; pe
       <div ref={content} className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-6 px-4 py-6">
         {messages.length === 0 && !pending && (
   <div className="grid flex-1 place-content-center justify-items-center text-muted-foreground">
-    <p className="font-mono text-lg">wlc.ia</p>
+    <img src={wlcLogo.url} alt="WLC IA" className="h-20 w-20 object-contain" />
+    <p className="mt-3 font-display text-sm font-semibold uppercase tracking-[0.25em] text-muted-foreground">WLC IA <span className="text-primary">_&lt;</span></p>
   </div>
 )}
         {messages.map((m, i) => <Message key={m.id} from={m.role === "model" ? "assistant" : "user"} className={m.role === "model" ? "max-w-full" : "max-w-[85%]"}>

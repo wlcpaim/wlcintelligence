@@ -4,6 +4,7 @@ import { openChatStream } from "@/modules/integrations/gemini/services/chat-stre
 import { textFromGeminiChunk } from "@/services/gemini.server";
 import type { RoutePlan } from "./orchestrator";
 import { BOT_TOOLS, parseBotStep } from "./tools";
+import { clearWriteClaims } from "./tools.server";
 import { openWorkspace, runTool } from "./tools.server";
 
 const MAX_STEPS = 5;

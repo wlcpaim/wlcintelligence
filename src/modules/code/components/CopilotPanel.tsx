@@ -1,16 +1,16 @@
+import wlcLogo from "@/assets/wlc-logo.png.asset.json";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { VersionSelector } from "@/modules/versions/components/VersionSelector";
-import { customVersionId, copilotHistoryKey, useSelectedVersion, PRO_SLUG, SYSTEM_SLUG, COPILOT_199_SLUG } from "@/modules/versions/selected";
+import { customVersionId, copilotHistoryKey, useSelectedVersion, setSelectedVersion, PRO_SLUG, SYSTEM_SLUG, COPILOT_199_SLUG } from "@/modules/versions/selected";
 import { supabase } from "@/integrations/supabase/client";
 import type { SystemConnection } from "@/modules/system/core/connection";
-import { ArrowUp, Check, Code2, FileCode2, Loader2, Square, X, RotateCcw, PlugZap, GitCommit, Wand2, SlidersHorizontal, Terminal, Rocket, FileText, Copy, Brush } from "lucide-react";
+import { ArrowUp, Check, Code2, FileCode2, Loader2, Square, X, RotateCcw, PlugZap, GitCommit, Wand2, SlidersHorizontal, Terminal, Rocket, FileText, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PromptInput, PromptInputFooter, PromptInputSubmit, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
 import { Markdown } from "@/components/chat/Markdown";
 import { useAutoTxt } from "@/hooks/use-auto-txt";
 import { SystemCommandCard } from "@/modules/system/components/SystemCommandCard";
-import { askCopilot, applyCopilotFile } from "../functions/copilot.functions";
+import { askCopilot, applyCopilotFile, validateAfterCopilotApply } from "../functions/copilot.functions";
 import { revertProjectBackup } from "../functions/backup.functions";
 import type { CopilotAnswer, CopilotChange } from "../copilot";
 
@@ -20,6 +20,13 @@ type Entry = {
   content: string;
   answer?: CopilotAnswer;
   resolved?: string[];
+  /** Metadados do WLC 1.1.0 System (ações clicáveis). */
+  system?: {
+    requiresConfirm?: boolean;
+    intent?: string;
+    confirmed?: boolean;
+    cancelled?: boolean;
+  };
   commitData?: {
     sha: string;
     message: string;
@@ -29,6 +36,8 @@ type Entry = {
   };
 };
 type AppliedFile = { id: string; path: string; content: string; base_content: string | null; deleted: boolean; updated_at: string };
+
+const PENDING_PROMPT_KEY = "wlc.copilot.pendingPrompt";
 
 type CopilotPanelProps = {
   projectId: string; ownerId: string; activePath: string | null;
@@ -45,6 +54,7 @@ export function CopilotPanel(props: CopilotPanelProps) {
 function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApplied, overlay, selectedVersion, storageKey }: CopilotPanelProps & { selectedVersion: string | null; storageKey: string }) {
   const ask = useServerFn(askCopilot);
   const apply = useServerFn(applyCopilotFile);
+  const validateApply = useServerFn(validateAfterCopilotApply);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [text, setText] = useState("");
   const autoTxt = useAutoTxt(1000);
@@ -89,14 +99,14 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
   const is199 = selectedVersion === COPILOT_199_SLUG;
   const versionId = customVersionId(selectedVersion);
   const copilotName = is199
-    ? "WLC 1.9.9 Copilot"
+    ? "Copilot Builder"
     : isPro
-    ? "WLC 1.7.1 Lite"
+    ? "Scale Editor"
     : isSystem
-    ? "WLC 1.1.0 Developers"
+    ? "Bypass"
     : versionId
     ? "Copilot WLC"
-    : "WLC 1.5.6 Prompt Maker";
+    : "Prompt Maker";
   const isPromptMaker = !is199 && !isPro && !isSystem && !versionId;
 
   useEffect(() => {
@@ -110,6 +120,15 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
     setReady(true);
     return () => abort.current?.abort();
   }, [storageKey]);
+
+  // Prompt Mestre enviado pelo botão Copilot do Prompt Maker: cola no Copilot Builder.
+  useEffect(() => {
+    if (!is199) return;
+    try {
+      const pending = sessionStorage.getItem(PENDING_PROMPT_KEY);
+      if (pending) { sessionStorage.removeItem(PENDING_PROMPT_KEY); setText(pending); }
+    } catch { /* sem storage */ }
+  }, [is199]);
 
   useEffect(() => {
     if (!ready) return;
@@ -133,8 +152,8 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
     return () => { supabase.removeChannel(channel); };
   }, [isSystem, is199, projectId]);
 
-  const send = async () => {
-    const prompt = autoTxt.buildPayload(text.trim());
+  const send = async (override?: string) => {
+    const prompt = override?.trim() || autoTxt.buildPayload(text.trim());
     if (!prompt || busy || applying) return;
     onFocus(); setBusy(true); setError(null);
     const controller = new AbortController(); abort.current = controller;
@@ -169,13 +188,24 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
             count?: number;
             backupId?: string | null;
             message?: string;
+            requiresConfirm?: boolean;
+            intent?: string;
           };
         };
         if (!response.ok || !result.ok) {
           setConnection(null);
           setError(result.reply ?? result.error ?? "Falha no System."); setText(prompt); return;
         }
-        setEntries(e => [...e, { id: crypto.randomUUID(), role: "model", content: result.reply ?? "" }]);
+        const requiresConfirm = Boolean(result.data && (result.data as { requiresConfirm?: boolean }).requiresConfirm);
+        const intent = typeof (result.data as { intent?: unknown } | undefined)?.intent === "string"
+          ? String((result.data as { intent?: string }).intent)
+          : undefined;
+        setEntries(e => [...e, {
+          id: crypto.randomUUID(),
+          role: "model",
+          content: result.reply ?? "",
+          ...(isSystem ? { system: { requiresConfirm, ...(intent !== undefined ? { intent } : {}) } } : {}),
+        }]);
         if (result.data?.connection) setConnection(result.data.connection);
         if (result.data?.sha && result.data?.backupId) {
           window.dispatchEvent(new CustomEvent("wlc-commit-success", {
@@ -214,6 +244,12 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
     try { localStorage.removeItem(storageKey); } catch { /* ignore */ }
   };
 
+  useEffect(() => {
+    const h = () => clearChat();
+    window.addEventListener("wlc-clear-chat", h);
+    return () => window.removeEventListener("wlc-clear-chat", h);
+  });
+
   const resolve = (id: string, path: string) => setEntries(e => e.map(item => item.id === id ? { ...item, resolved: [...(item.resolved ?? []), path] } : item));
   const applyChange = async (id: string, change: CopilotChange) => {
     if (applying || busy) return;
@@ -247,6 +283,29 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
         }
       }
       if (failed.length) setError(`${failed.length} arquivo(s) não aplicado(s): ${failed.slice(0, 3).join(" · ")}`);
+      else {
+        // Pós-apply: validação local + typecheck remoto (se GitHub vinculado)
+        try {
+          const v = await validateApply({ data: { projectId, withRemote: true } });
+          if (v.ok && v.report) {
+            const note = v.report.summary.slice(0, 1200);
+            if (!v.report.local.ok || !v.report.remote.ok) {
+              setError(note);
+            } else {
+              // feedback positivo no histórico via entry de sistema leve
+              setEntries(prev => [...prev, {
+                id: crypto.randomUUID(),
+                role: "model" as const,
+                content: note,
+              }]);
+            }
+          } else if (!v.ok) {
+            setError(v.error ?? "Validação pós-edição falhou");
+          }
+        } catch {
+          /* validação é best-effort; apply já concluiu */
+        }
+      }
     } finally { setApplying(null); }
   };
 
@@ -270,30 +329,10 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
           </div>
         )}
 {entries.length === 0 && (
-          <div className="py-8 space-y-5">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 grid h-10 w-10 place-items-center rounded-xl border border-border bg-muted/50 text-primary">
-                {is199 ? <Rocket className="h-5 w-5" /> : isPro ? <SlidersHorizontal className="h-5 w-5" /> : isSystem ? <Terminal className="h-5 w-5" /> : isPromptMaker ? <Wand2 className="h-5 w-5" /> : <Code2 className="h-5 w-5" />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="font-mono text-xl font-semibold tracking-tight">{copilotName}</h1>
-                  <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {is199 ? "Copilot" : isPro ? "Lite" : isSystem ? "Developers" : isPromptMaker ? "Prompt Maker" : "Custom"}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {is199
-                    ? "Constrói a aplicação completa do zero: rotas reais, banco Supabase, painel admin isolado e deploy na Cloudflare. Cole o Prompt Mestre do 1.5.6 ou descreva o produto."
-                    : isPro
-                    ? "Editor cirúrgico para projetos já gerados. Peça mudanças pontuais de cor, texto, seções, campos ou componentes — ele localiza e aplica sem reescrever o app inteiro."
-                    : isSystem
-                    ? "Terminal cognitivo avançado para desenvolvedores. Comandos técnicos, inspeção de arquivos, diagnóstico e operações de baixo nível no projeto."
-                    : isPromptMaker
-                    ? "Transforma sua ideia bruta em um Prompt Mestre estruturado (6 blocos) otimizado para o WLC 1.9.9 gerar a aplicação sem falhas de arquitetura."
-                    : "Copilot especializado na versão selecionada."}
-                </p>
-              </div>
+          <div className="py-8 space-y-6">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <img src={wlcLogo.url} alt="WLC IA" className="h-20 w-20 object-contain" />
+              <h1 className="font-display text-sm font-semibold uppercase tracking-[0.25em] text-muted-foreground">WLC IA <span className="text-primary">_&lt;</span></h1>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-3">
@@ -419,23 +458,107 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
                 {entry.role === "model" && <Code2 className="h-3.5 w-3.5 text-primary" />}{entry.role === "user" ? "Você" : copilotName}
               </div>
               <Markdown>{entry.content}</Markdown>
+              {isSystem && entry.role === "model" && entry.system && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {entry.system.requiresConfirm && !entry.system.confirmed && !entry.system.cancelled ? (
+                    <>
+                      <Button
+                        size="sm"
+                        className="h-8 gap-1.5 bg-emerald-600 text-white hover:bg-emerald-500"
+                        disabled={busy}
+                        onClick={() => {
+                          setEntries(e => e.map(item =>
+                            item.id === entry.id && item.system
+                              ? { ...item, system: { ...item.system, confirmed: true, requiresConfirm: false } }
+                              : item,
+                          ));
+                          void send("confirmar");
+                        }}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        Confirmar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5"
+                        disabled={busy}
+                        onClick={() => {
+                          setEntries(e => e.map(item =>
+                            item.id === entry.id && item.system
+                              ? { ...item, system: { ...item.system, cancelled: true, requiresConfirm: false } }
+                              : item,
+                          ));
+                          void send("cancelar");
+                        }}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Cancelar
+                      </Button>
+                    </>
+                  ) : entry.system.confirmed ? (
+                    <span className="rounded-md border border-emerald-800/50 bg-emerald-950/40 px-2 py-1 font-mono text-[10px] text-emerald-400">
+                      Confirmado
+                    </span>
+                  ) : entry.system.cancelled ? (
+                    <span className="rounded-md border border-border bg-muted/40 px-2 py-1 font-mono text-[10px] text-muted-foreground">
+                      Cancelado
+                    </span>
+                  ) : null}
+                  {/* Atalhos de produção — sempre disponíveis nas respostas System */}
+                  {!entry.system.requiresConfirm && (
+                    <>
+                      <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" disabled={busy} onClick={() => void send("status")}>
+                        status
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" disabled={busy} onClick={() => void send("ls")}>
+                        ls
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" disabled={busy} onClick={() => void send("diff")}>
+                        diff
+                      </Button>
+                      <Button size="sm" variant="secondary" className="h-7 gap-1 px-2 text-xs" disabled={busy} onClick={() => void send("commit")}>
+                        <GitCommit className="h-3 w-3" />
+                        commit
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
               {(isPromptMaker || (entry.answer && entry.answer.changes.length === 0)) && entry.role === "model" && (
                 <div className="mt-3">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="gap-1.5"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(entry.content);
-                        setCopiedPrompt(true);
-                        setTimeout(() => setCopiedPrompt(false), 2000);
-                      } catch { /* clipboard indisponível */ }
-                    }}
-                  >
-                    {copiedPrompt ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copiedPrompt ? "Copiado" : "Copiar Prompt Mestre"}
-                  </Button>
+                  {isPromptMaker ? (
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={async () => {
+                        const block = /```(?:text)?\n([\s\S]*?)```/.exec(entry.content)?.[1]?.trim() || entry.content;
+                        try { await navigator.clipboard.writeText(block); } catch { /* clipboard indisponível */ }
+                        // O painel remonta ao trocar de versão: o prompt segue pelo sessionStorage.
+                        try { sessionStorage.setItem(PENDING_PROMPT_KEY, block); } catch { setText(block); }
+                        setSelectedVersion(COPILOT_199_SLUG);
+                      }}
+                    >
+                      <Rocket className="h-3.5 w-3.5" />
+                      Copilot
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="gap-1.5"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(entry.content);
+                          setCopiedPrompt(true);
+                          setTimeout(() => setCopiedPrompt(false), 2000);
+                        } catch { /* clipboard indisponível */ }
+                      }}
+                    >
+                      {copiedPrompt ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copiedPrompt ? "Copiado" : "Copiar"}
+                    </Button>
+                  )}
                 </div>
               )}
               {entry.answer && entry.answer.changes.length > 0 && <>
@@ -493,29 +616,17 @@ function VersionCopilotPanel({ projectId, activePath, beforeSend, onFocus, onApp
           <PromptInputTextarea aria-label="Mensagem para Copilot WLC" placeholder={
               autoTxt.attachments.length
                 ? "Instrução adicional (texto longo já anexado como .txt)..."
-                : isSystem ? "wlc:~$ Digite um comando ou instrução técnica..."
-                : isPro ? "Ex: Mudar a cor do botão, adicionar campo no formulário..."
-                : is199 ? "Cole o prompt do Prompt Maker ou descreva a aplicação completa..."
-                : isPromptMaker ? "Cole seu prompt ou descreva sua ideia bruta aqui..."
+                : isSystem ? "CMD"
+                : isPro ? "Otimização"
+                : is199 ? "Cole seu Prompt"
+                : isPromptMaker ? "Qual sua ideia?"
                 : "O que vamos criar neste projeto?"
             } value={text} maxLength={isSystem ? 100_000 : 100_000}
             onChange={e => autoTxt.handleChange(e.target.value, setText)}
             onPaste={e => autoTxt.handlePaste(e, text, setText)}
             className={`min-h-[2.75rem] px-1 text-base leading-relaxed ${isSystem ? "font-mono text-sm" : ""}`} />
           <PromptInputFooter className="items-center gap-1.5 px-1 pb-0.5 pt-0">
-            <span className="min-w-0 flex-1"><VersionSelector /></span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
-              title="Limpar chat"
-              aria-label="Limpar chat"
-              disabled={busy || entries.length === 0}
-              onClick={clearChat}
-            >
-              <Brush className="h-3.5 w-3.5" />
-            </Button>
+            <span className="flex-1" />
             <PromptInputSubmit
               status={busy ? "streaming" : "ready"}
               className="size-9 shrink-0 rounded-xl"

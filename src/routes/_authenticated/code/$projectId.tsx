@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ChevronDown, ChevronRight, Code2, FilePlus, GitCommitHorizontal, Github, Loader2, Trash2, X, Check, Circle, Lock, Globe, PanelLeft, PanelsTopLeft, Rocket, ExternalLink, RefreshCw, Sparkles, Upload } from "lucide-react";
+import { Broom } from "@/components/icons/Broom";
+import { VersionSelector } from "@/modules/versions/components/VersionSelector";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,25 +77,23 @@ function EditorPage() {
   const repairDeploy = useServerFn(repairFailedDeploy);
   const pull = useServerFn(pullRepoProject);
   const reloadFiles = async () => {
-    const { data } = await supabase.from("code_files").select("id,path,content,base_content,deleted,updated_at").eq("project_id", projectId).order("path");
-    if (data) setFiles(data);
+    const all: CFile[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from("code_files")
+        .select("id,path,content,base_content,deleted,updated_at")
+        .eq("project_id", projectId)
+        .order("path")
+        .range(from, from + 999);
+      if (error) {
+        toast.error(`Não foi possível recarregar arquivos: ${error.message}`);
+        return;
+      }
+      all.push(...(data ?? []));
+      if ((data?.length ?? 0) < 1000) break;
+    }
+    setFiles(all);
   };
-  useEffect(() => {
-    const handleReload = () => {
-      void reloadFiles();
-      void qc.invalidateQueries({ queryKey: ["code-project", projectId] });
-    };
-    const handleOpenCommit = () => {
-      void flush().then(() => setCommitOpen(true)).catch(() => setCommitOpen(true));
-    };
-    window.addEventListener("wlc-reload-files", handleReload);
-    window.addEventListener("wlc-open-commit-dialog", handleOpenCommit);
-    return () => {
-      window.removeEventListener("wlc-reload-files", handleReload);
-      window.removeEventListener("wlc-open-commit-dialog", handleOpenCommit);
-    };
-  }, [projectId]);
-
   const syncFiles = async () => {
     const { data } = await supabase.from("code_files").select("id,path,content,base_content,deleted,updated_at").eq("project_id", projectId).order("path");
     if (data) setFiles(data);
@@ -113,19 +113,29 @@ function EditorPage() {
     }
   };
   const runDeploy = async () => {
-    setDeploying(true); setStage("Enviando ao GitHub");
+    const copyError = (message: string, description?: string) => toast.error(message, {
+      duration: 20000, ...(description ? { description } : {}),
+      action: { label: "Copiar erro", onClick: () => {
+        void navigator.clipboard.writeText([message, description].filter(Boolean).join("\n"))
+          .then(() => toast.success("Erro copiado"))
+          .catch(() => toast.error("Não foi possível copiar o erro"));
+      } },
+    });
+    setDeploying(true); setStage("Time de correção + pré-voo");
     try {
       await flush();
       const r = await deploy({ data: { projectId } });
-      if (!r.ok) { toast.error(r.error, { duration: 12000 }); return; }
+      if (!r.ok) { copyError(r.error); await reloadFiles(); return; }
+      if (r.repaired > 0) toast.success(`${r.repaired} arquivo(s) corrigido(s) antes da publicação`);
       if (r.committed > 0) await reloadFiles();
       qc.invalidateQueries({ queryKey: ["code-project", projectId] });
       const started = Date.now();
       let deploymentId = r.deploymentId;
+      let healAttempts = 0;
       while (Date.now() - started < 20 * 60_000) {
         await new Promise(res => setTimeout(res, 5000));
         const s = await status({ data: { cfProject: r.cfProject, deploymentId } });
-        if (!s.ok) { toast.error(s.error); return; }
+        if (!s.ok) { copyError(s.error); return; }
         setStage(STAGE_LABEL[s.stage] ?? "Compilando");
         if (s.state === "success") {
           await reloadFiles();
@@ -134,18 +144,25 @@ function EditorPage() {
           return;
         }
         if (s.state === "failure") {
-          setStage("Corrigindo falha com segurança");
+          healAttempts += 1;
+          setStage(`Bots corrigindo (tentativa ${healAttempts})`);
           const fixed = await repairDeploy({ data: { projectId, deploymentId, rootId: r.deploymentId } });
-          if (fixed.ok && fixed.state === "retry" && fixed.deploymentId) { deploymentId = fixed.deploymentId; await reloadFiles(); continue; }
+          if (fixed.ok && fixed.state === "retry" && fixed.deploymentId) {
+            deploymentId = fixed.deploymentId;
+            await reloadFiles();
+            setStage("Redeploy após correção");
+            toast.message(fixed.message || "Correção aplicada; novo deploy em andamento.", { duration: 8000 });
+            continue;
+          }
           if (fixed.ok && fixed.state === "running") { setStage("Correção em andamento"); continue; }
-          if (!fixed.ok) toast.error(fixed.error);
+          if (!fixed.ok) copyError(fixed.error);
           else toast.message(fixed.message, { duration: 12000 });
-          toast.error(`O build falhou na etapa "${STAGE_LABEL[s.stage] ?? s.stage}"`, { description: (s.logs.filter(l => /error|failed|cannot|not found/i.test(l)).slice(-6).join("\n") || s.logs.slice(-6).join("\n")) || "Veja os detalhes no painel da Cloudflare.", duration: 20000 });
+          copyError(`A publicação falhou na etapa "${STAGE_LABEL[s.stage] ?? s.stage}"`, (s.logs.filter(l => /error|failed|cannot|not found/i.test(l)).slice(-6).join("\n") || s.logs.slice(-6).join("\n")) || "Sem detalhes adicionais.");
           return;
         }
       }
       toast.message("O build continua na Cloudflare. Abra o site em alguns minutos.");
-    } catch { toast.error("Não foi possível publicar."); } finally { setDeploying(false); setStage(null); }
+    } catch (e) { copyError(e instanceof Error ? e.message : "Não foi possível publicar."); } finally { setDeploying(false); setStage(null); }
   };
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const writes = useRef(new Map<string, Promise<void>>());
@@ -195,6 +212,29 @@ function EditorPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [flush]);
+
+  // Listeners de commit/reload — DEPOIS de flush (evita TDZ / ReferenceError ao abrir o projeto)
+  useEffect(() => {
+    const handleReload = () => {
+      void reloadFiles();
+      void qc.invalidateQueries({ queryKey: ["code-project", projectId] });
+    };
+    const handleOpenCommit = () => {
+      void flush().then(() => setCommitOpen(true)).catch(() => setCommitOpen(true));
+    };
+    const handleFlushBeforeCommit = () => {
+      void flush().catch(() => {});
+    };
+    window.addEventListener("wlc-reload-files", handleReload);
+    window.addEventListener("wlc-open-commit-dialog", handleOpenCommit);
+    window.addEventListener("wlc-flush-before-commit", handleFlushBeforeCommit);
+    return () => {
+      window.removeEventListener("wlc-reload-files", handleReload);
+      window.removeEventListener("wlc-open-commit-dialog", handleOpenCommit);
+      window.removeEventListener("wlc-flush-before-commit", handleFlushBeforeCommit);
+    };
+  }, [projectId, flush, qc]);
+
   useEffect(() => () => { for (const t of timers.current.values()) clearTimeout(t); }, []);
 
   const onEdit = (value: string) => {
@@ -369,7 +409,7 @@ function EditorPage() {
   return (
     <div className="flex h-full flex-col bg-[var(--code-editor)] text-foreground">
       <header className="shrink-0 border-b border-border bg-background">
-        <div className="flex min-h-11 min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-1.5">
+        <div className="flex min-h-11 min-w-0 items-center gap-x-2 px-3 py-1.5">
           <Button asChild variant="ghost" size="icon-sm" aria-label="Projetos" className="h-7 w-7 shrink-0">
             <Link to="/code"><ArrowLeft className="h-4 w-4" /></Link>
           </Button>
@@ -384,7 +424,32 @@ function EditorPage() {
             )}
           </span>
 
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 w-24 shrink-0 justify-center gap-1.5 px-2.5 text-xs"
+              onClick={() => {
+                void flush()
+                  .then(() => setCommitOpen(true))
+                  .catch(() => toast.error("Salve os arquivos antes do commit."));
+              }}
+            >
+              <GitCommitHorizontal className="h-3.5 w-3.5" />
+              Commit
+              {pending.length > 0 && (
+                <span className="rounded bg-primary/15 px-1 text-[10px] text-primary">{pending.length}</span>
+              )}
+            </Button>
+            <Button size="sm" className="h-7 w-24 shrink-0 justify-center gap-1.5 px-2.5 text-xs" disabled={deploying} onClick={runDeploy}>
+              {deploying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
+              {deploying && stage ? <span className="max-w-14 truncate">{stage}…</span> : "Deploy"}
+            </Button>
+          </div>
+        </div>
+        <div className="flex min-w-0 items-center justify-between gap-1 border-t border-border px-3 py-1">
+          <div className="min-w-0 shrink"><VersionSelector /></div>
+          <div className="flex flex-wrap items-center justify-end gap-1">
             {/* Visualizadores */}
             <Button
               variant="ghost"
@@ -455,23 +520,14 @@ function EditorPage() {
 
             {/* Primários */}
             <Button
-              size="sm"
-              className="h-7 gap-1.5 px-2.5 text-xs"
-              onClick={() => {
-                void flush()
-                  .then(() => setCommitOpen(true))
-                  .catch(() => toast.error("Salve os arquivos antes do commit."));
-              }}
+              size="icon-sm"
+              variant="ghost"
+              className="h-7 w-7"
+              title="Limpar chat"
+              aria-label="Limpar chat"
+              onClick={() => window.dispatchEvent(new CustomEvent("wlc-clear-chat"))}
             >
-              <GitCommitHorizontal className="h-3.5 w-3.5" />
-              Commit
-              {pending.length > 0 && (
-                <span className="rounded bg-primary-foreground/20 px-1 text-[10px]">{pending.length}</span>
-              )}
-            </Button>
-            <Button size="sm" variant="outline" className="h-7 gap-1.5 px-2.5 text-xs" disabled={deploying} onClick={runDeploy}>
-              {deploying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
-              {deploying && stage ? <span className="max-w-24 truncate">{stage}…</span> : "Deploy"}
+              <Broom className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
@@ -514,6 +570,16 @@ function EditorPage() {
         {current && <span className="ml-auto" style={{ color: fileType(current.path).color }}>{fileType(current.path).label}</span>}
       </footer>
       {p && <CommitDialog open={commitOpen} onOpenChange={setCommitOpen} project={p} pending={pending} onDone={async (commitInfo?: { sha: string; count: number; backupId?: string | null; message: string }) => {
+        // Otimista: zera pendentes localmente imediatamente (base_content = content)
+        // para o badge não ficar "preso" se o reload atrasar ou falhar parcialmente.
+        if (commitInfo) {
+          setFiles(fs => (fs ?? [])
+            .filter(f => !f.deleted)
+            .map(f => (f.content !== f.base_content ? { ...f, base_content: f.content } : f)));
+          // Limpa timers de auto-save para não regravar conteúdo e sujar de novo
+          for (const t of timers.current.values()) clearTimeout(t);
+          timers.current.clear();
+        }
         await reloadFiles();
         qc.invalidateQueries({ queryKey: ["code-project", projectId] }); qc.invalidateQueries({ queryKey: ["code-projects"] });
         if (commitInfo) {
@@ -570,13 +636,20 @@ function CommitDialog({ open, onOpenChange, project, pending, onDone }: {
   };
   const doCommit = async () => {
     setBusy(true);
-    await new Promise(r => setTimeout(r, 800));
-    const trimmedMsg = message.trim();
-    const r = await commit({ data: { projectId: project.id, message: trimmedMsg } });
-    setBusy(false);
-    if (!r.ok) { toast.error(r.error); return; }
-    toast.success(`Commit ${r.sha.slice(0, 7)} enviado com ${r.count} arquivo(s)`);
-    setMessage(""); onOpenChange(false); await onDone({ sha: r.sha, count: r.count, backupId: r.backupId ?? null, message: trimmedMsg });
+    try {
+      // Garante que writes em debounce foram persistidos antes do snapshot do commit
+      window.dispatchEvent(new Event("wlc-flush-before-commit"));
+      await new Promise(r => setTimeout(r, 200));
+      const trimmedMsg = message.trim();
+      const r = await commit({ data: { projectId: project.id, message: trimmedMsg } });
+      if (!r.ok) { toast.error(r.error); return; }
+      toast.success(`Commit ${r.sha.slice(0, 7)} enviado com ${r.count} arquivo(s)`);
+      setMessage("");
+      onOpenChange(false);
+      await onDone({ sha: r.sha, count: r.count, backupId: r.backupId ?? null, message: trimmedMsg });
+    } finally {
+      setBusy(false);
+    }
   };
 
   return <Dialog open={open} onOpenChange={o => !busy && onOpenChange(o)}>

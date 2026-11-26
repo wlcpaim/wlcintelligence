@@ -5,15 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1795591597603,
-      "tag": "0000_recreate_wlcia_schema",
+      "when": 1795665995312,
+      "tag": "0000_project_commit_leases",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1795593196250,
-      "tag": "0001_harden_claim_legacy_account",
+      "when": 1795666500000,
+      "tag": "0001_complete_commit_base_content",
       "breakpoints": true
     }
   ]

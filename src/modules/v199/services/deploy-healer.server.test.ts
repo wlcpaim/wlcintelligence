@@ -1,8 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Db } from "@/modules/integrations/core/runs.server";
 import { healFailedDeployment } from "./deploy-healer.server";
-const mocks = vi.hoisted(() => ({ creds: vi.fn(), deployment: vi.fn(), repair: vi.fn(), commit: vi.fn(), start: vi.fn() }));
-vi.mock("@/modules/integrations/cloudflare/services/cloudflare.server", () => ({ getCreds: mocks.creds, getDeployment: mocks.deployment, startBuild: mocks.start }));
+const mocks = vi.hoisted(() => ({ creds: vi.fn(), deployment: vi.fn(), repair: vi.fn(), provision: vi.fn(), env: vi.fn(), preflight: vi.fn(), commit: vi.fn(), start: vi.fn() }));
+vi.mock("@/modules/integrations/cloudflare/services/cloudflare.server", () => ({ getCreds: mocks.creds, getDbEnv: mocks.env, getDeployment: mocks.deployment, startBuild: mocks.start }));
+vi.mock("@/modules/engineering/generated-app.server", () => ({ provisionGeneratedDatabase: mocks.provision }));
+vi.mock("./preflight.server", () => ({ healPreflightIntegrity: mocks.preflight }));
 vi.mock("./quality.server", () => ({ proposeSurgicalRepair: mocks.repair }));
 vi.mock("@/modules/code/services/commit.server", () => ({ commitPending: mocks.commit }));
 
@@ -29,10 +31,11 @@ beforeEach(() => {
   mocks.deployment.mockResolvedValue({ state: "failure", logs: ["src/a.ts failed"], commitSha: "sha" });
   mocks.repair.mockResolvedValue([{ path: "src/a.ts", content: "export const a = 2;" }]);
   mocks.commit.mockResolvedValue({ sha: "next" }); mocks.start.mockResolvedValue("next-deploy");
+  mocks.env.mockResolvedValue(null); mocks.provision.mockResolvedValue({ ready: true, tables: 0 }); mocks.preflight.mockResolvedValue({ files: [], repaired: 0 });
 });
-it("limita recuperação a duas rodadas sem chamar API nem alterar arquivos", async () => {
-  const d = database([{ id: "one", detail: "{}" }, { id: "two", detail: "{}" }]);
-  expect((await healFailedDeployment(d.db, "owner", "project", "third", "root")).state).toBe("blocked");
+it("limita recuperação a três rodadas sem chamar API nem alterar arquivos", async () => {
+  const d = database([{ id: "one", detail: "{}" }, { id: "two", detail: "{}" }, { id: "three", detail: "{}" }]);
+  expect((await healFailedDeployment(d.db, "owner", "project", "fourth", "root")).state).toBe("blocked");
   expect(mocks.deployment).not.toHaveBeenCalled(); expect(d.writes).toEqual([]);
 });
 it("repetição do mesmo deploy reutiliza resultado sem duplicar commit", async () => {
@@ -60,4 +63,10 @@ it("não usa logs de um commit antigo para corrigir versão atual", async () => 
   const d = database(); mocks.deployment.mockResolvedValue({ state: "failure", logs: ["failed"], commitSha: "old" });
   expect((await healFailedDeployment(d.db, "owner", "project", "root", "root")).state).toBe("blocked");
   expect(d.writes).toEqual([]);
+});
+it("recuperação não comita nem republica quando banco não fica pronto", async () => {
+  const d = database();
+  mocks.provision.mockRejectedValue(new Error("Banco não provisionado"));
+  expect((await healFailedDeployment(d.db, "owner", "project", "root", "root")).state).toBe("blocked");
+  expect(mocks.commit).not.toHaveBeenCalled(); expect(mocks.start).not.toHaveBeenCalled();
 });

@@ -38,3 +38,29 @@ describe("parser resiliente", () => {
     expect(rankCopilotFiles(files, "muda o menu nav", "a.ts").map(f => f.path)).toEqual(["a.ts", "src/nav/nav-items.ts", "src/chat/ChatWindow.tsx"]);
   });
 });
+
+import { buildLocalImportGraph, expandImpactPaths, rankCopilotFiles as rankWithImpact } from "./copilot";
+
+describe("import impact graph", () => {
+  const files = [
+    { path: "src/App.tsx", content: 'import Home from "./pages/Home";\nexport default function App(){return <Home/>}' },
+    { path: "src/pages/Home.tsx", content: 'import { listItems } from "../services/items";\nexport default function Home(){return null}' },
+    { path: "src/services/items.ts", content: "export const listItems = () => [];" },
+    { path: "src/unrelated.ts", content: "export const x = 1;" },
+  ];
+  it("builds local import edges", () => {
+    const g = buildLocalImportGraph(files);
+    expect(g.get("src/App.tsx")).toContain("src/pages/Home.tsx");
+    expect(g.get("src/pages/Home.tsx")).toContain("src/services/items.ts");
+  });
+  it("expands impact from a seed", () => {
+    const g = buildLocalImportGraph(files);
+    const impact = expandImpactPaths(["src/pages/Home.tsx"], g);
+    expect(impact).toEqual(expect.arrayContaining(["src/pages/Home.tsx", "src/App.tsx", "src/services/items.ts"]));
+  });
+  it("ranks dependency neighbors above unrelated files", () => {
+    const ranked = rankWithImpact(files, "atualiza a home", null).map(f => f.path);
+    expect(ranked.indexOf("src/pages/Home.tsx")).toBeLessThan(ranked.indexOf("src/unrelated.ts"));
+    expect(ranked.indexOf("src/App.tsx")).toBeLessThan(ranked.indexOf("src/unrelated.ts"));
+  });
+});

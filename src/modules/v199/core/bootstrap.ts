@@ -320,7 +320,7 @@ export function diagnoseBuildReadiness(files: BootstrapFile[]): BuildIssue[] {
   for (const issue of visual.issues) issues.push({ ...issue, line: 1 });
 
   // Arquitetura de produto: rotas reais, Supabase, _redirects, anti useState-router
-  for (const issue of inspectArchitecture(files).issues) {
+  for (const issue of inspectArchitecture(files).errors) {
     issues.push({
       path: issue.path,
       line: 1,
