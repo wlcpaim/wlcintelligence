@@ -339,64 +339,6 @@ export type Database = {
         }
         Relationships: []
       }
-      generated_app_user_roles: {
-        Row: {
-          project_id: string
-          role: string
-          user_id: string
-        }
-        Insert: {
-          project_id: string
-          role: string
-          user_id: string
-        }
-        Update: {
-          project_id?: string
-          role?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "generated_app_user_roles_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "generated_apps_registry"
-            referencedColumns: ["project_id"]
-          },
-        ]
-      }
-      generated_apps_registry: {
-        Row: {
-          admin_user_id: string | null
-          created_at: string
-          manifest: Json
-          project_id: string
-          user_id: string
-        }
-        Insert: {
-          admin_user_id?: string | null
-          created_at?: string
-          manifest: Json
-          project_id: string
-          user_id: string
-        }
-        Update: {
-          admin_user_id?: string | null
-          created_at?: string
-          manifest?: Json
-          project_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "generated_apps_registry_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: true
-            referencedRelation: "code_projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       github_connections: {
         Row: {
           account_id: number | null
@@ -612,35 +554,6 @@ export type Database = {
           },
         ]
       }
-      project_commit_leases: {
-        Row: {
-          expires_at: string
-          lease_id: string
-          project_id: string
-          user_id: string
-        }
-        Insert: {
-          expires_at?: string
-          lease_id?: string
-          project_id: string
-          user_id: string
-        }
-        Update: {
-          expires_at?: string
-          lease_id?: string
-          project_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_commit_leases_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: true
-            referencedRelation: "code_projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       system_events: {
         Row: {
           content: string
@@ -738,23 +651,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      begin_project_commit: { Args: { p_project_id: string }; Returns: string }
-      claim_generated_app_admin: {
-        Args: { p_project_id: string }
-        Returns: string
-      }
       claim_legacy_account: { Args: never; Returns: Json }
-      complete_project_commit: {
-        Args: {
-          p_files: Json
-          p_lease_id: string
-          p_project_id: string
-          p_sha: string
-        }
-        Returns: undefined
-      }
       exec_migration: { Args: { p_sql: string }; Returns: Json }
-      generated_app_role: { Args: { p_project_id: string }; Returns: string }
       inspect_schema: { Args: never; Returns: Json }
       lookup_auth_email: {
         Args: { p_email: string }
@@ -763,14 +661,6 @@ export type Database = {
           exists_account: boolean
           has_password: boolean
         }[]
-      }
-      provision_generated_app: {
-        Args: { p_manifest: Json; p_project_id: string }
-        Returns: Json
-      }
-      release_project_commit: {
-        Args: { p_lease_id: string; p_project_id: string }
-        Returns: undefined
       }
     }
     Enums: {
