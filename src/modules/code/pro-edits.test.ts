@@ -18,6 +18,19 @@ describe("PRO copilot edits", () => {
 });
 
 describe("applyEditsRobust", () => {
+  it("maps indentation changes without removing adjacent code or newlines", () => {
+    const original = "before();\n  const value = 1;\n    use(value);\nafter();\n";
+    expect(applyEditsRobust(original, [{ search: "const value = 1;\n  use(value);", replace: "const value = 2;\n  use(value);" }])).toBe("before();\n  const value = 2;\n  use(value);\nafter();\n");
+  });
+  it("supports deletion in the normalized fallback", () => {
+    expect(applyEditsRobust("const value = 1;\n    use(value);\nafter();", [{ search: "const value = 1;\n  use(value);", replace: "" }])).toBe("\nafter();");
+  });
+  it("rejects ambiguous normalized snippets", () => {
+    expect(() => applyEditsRobust("const value = 1;\n    use(value);\nconst value = 1;\n\tuse(value);", [{ search: "const value = 1;\n  use(value);", replace: "changed" }])).toThrow(/ambíguo/);
+  });
+  it("does not normalize spaces inside string literals", () => {
+    expect(() => applyEditsRobust('const value = "a  b";\n    use(value);', [{ search: 'const value = "a b";\n  use(value);', replace: "changed" }])).toThrow(/não localizado/);
+  });
   it("exact match works like applyEdits", () => {
     expect(applyEditsRobust("a\nb\nc", [{ search: "b", replace: "B" }])).toBe("a\nB\nc");
   });

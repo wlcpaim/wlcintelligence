@@ -17,6 +17,21 @@ const k = (id: string, o: Partial<RotationKey> = {}): RotationKey => ({
 });
 
 describe("gemini rotation", () => {
+  it("proactively selects the least recently used healthy project", () => {
+    const keys = [
+      k("a", { google_project: "p", is_primary: true, last_used_at: "2026-05-01T00:00:00Z" }),
+      k("bb", { google_project: "p", last_used_at: null }),
+      k("ccc", { google_project: "q", last_used_at: "2026-04-30T23:59:00Z" }),
+    ];
+    expect(orderCandidates(keys, new Date("2026-05-01T00:01:00Z"), "least-recently-used").map(x => x.id)).toEqual(["ccc", "bb", "a"]);
+  });
+  it("rotates after a successful phase and excludes cooling or disabled keys", () => {
+    const now = new Date("2026-05-01T00:01:00Z");
+    const keys = [k("a", { is_primary: true }), k("bb"), k("ccc", { enabled: false }), k("dddd", { cooldown_until: "2026-05-01T00:02:00Z" })];
+    expect(orderCandidates(keys, now, "least-recently-used")[0]?.id).toBe("a");
+    const used = keys.map(key => key.id === "a" ? { ...key, last_used_at: now.toISOString() } : key);
+    expect(orderCandidates(used, now, "least-recently-used").map(x => x.id)).toEqual(["bb", "a"]);
+  });
   it("uses the primary key first and skips disabled or cooling keys", () => {
     const now = new Date("2026-05-01T00:00:00Z");
     const keys = [

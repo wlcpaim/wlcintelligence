@@ -64,3 +64,23 @@ it("ignores an unknown preferred key and follows the normal rotation", async () 
   const result = await openChatStream({} as Db, "owner", [], new AbortController().signal, false, { instruction: "x", maxOutputTokens: 100, preferredKeyId: "nope" });
   expect(result.ok && result.keyId).toBe("bad");
 });
+
+it("does not retry another key after a non-recoverable 400", async () => {
+  mocks.stream.mockResolvedValue(new Response("bad request", { status: 400 }));
+  const result = await openChatStream({} as Db, "owner", [], new AbortController().signal);
+  expect(result.ok).toBe(false);
+  expect(mocks.stream).toHaveBeenCalledTimes(1);
+});
+
+it("persists a shared project cooldown and skips sibling keys after 429", async () => {
+  mocks.load.mockResolvedValue([
+    { id: "bad", google_project: "one", is_primary: true, enabled: true, cooldown_until: null, created_at: "2026-01-01", status: "connected", secret: "first" },
+    { id: "sibling", google_project: "one", is_primary: false, enabled: true, cooldown_until: null, created_at: "2026-01-02", status: "connected", secret: "sibling" },
+    { id: "good", google_project: "two", is_primary: false, enabled: true, cooldown_until: null, created_at: "2026-01-03", status: "connected", secret: "reserve" },
+  ]);
+  mocks.stream.mockResolvedValueOnce(new Response("quota", { status: 429 })).mockResolvedValueOnce(new Response("data: {}\n"));
+  const result = await openChatStream({} as Db, "owner", [], new AbortController().signal);
+  expect(result.ok && result.keyId).toBe("good");
+  expect(mocks.stream.mock.calls.map(call => call[0])).toEqual(["first", "reserve"]);
+  expect(mocks.patch).toHaveBeenCalledWith(expect.anything(), "owner", "sibling", expect.objectContaining({ status: "quota_exhausted", cooldown_until: expect.any(String) }));
+});

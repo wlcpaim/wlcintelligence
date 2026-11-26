@@ -31,6 +31,10 @@ use the editor.
 
 ## Architecture Notes
 
+- **PRO prompt budgets.** Build keeps complete editable source within a shared character budget; planning expansion spends the remaining budget and only PICK receives the project map. Why: avoid duplicate context and unsafe truncated source.
+- **PRO key scheduling.** Opt-in project-aware least-recently-used scheduling uses persisted key usage; other engines retain primary-first ordering. Why: distribute sequential PRO phases without changing specialist preferences or pretending provider quotas disappear.
+- **Surgical matching.** Whitespace-tolerant edits map each normalized character to its exact source range and reject non-unique matches. Why: line-count heuristics can remove neighboring code.
+
 - **User-owned integrations encryption.** Per-user Gemini, GitHub, and Cloudflare tokens are encrypted server-side with AES-256-GCM using `INTEGRATIONS_MASTER_KEY` and per-user AAD (`src/modules/integrations/core/crypto.server.ts`); never hardcode credentials in `quick-setup/credentials.server.ts`.
 - **Legacy account claim.** Imported records map through server-only `public.legacy_users` and transfer to a signed-in account only via `public.claim_legacy_account()` after verified email ownership.
 - **WLC 1.9.9 Bootstrap Level-0 enforcement.** `src/modules/v199/core/bootstrap.ts` validates the base runtime quartet (`package.json`, `tsconfig.json`, `index.html`, entrypoint) and declared dependencies after Phase 2 so `runner.server.ts` forces DevOps and passes full config files plus static build issues into Phase 4 (`runCodeAnalyst`), preventing uncompilable external projects from reaching Deploy.

@@ -9,6 +9,7 @@ import { applyEditsRobust, parseJsonLoose, proAnswerSchema, proPickSchema } from
 import { validateEditBatch, buildValidationReport } from "../edit-integrity";
 import { CopilotProviderError } from "./copilot.server";
 import { GENERATED_APP_CONTRACT } from "@/modules/engineering/generated-app-contract";
+import { boundedProHistory, PRO_CONTEXT_BUDGET, proFileCost } from "../pro-context";
 
 const PICK = `Você é o WLC 1.7.1 PRO — Elite Software Engineering Agent (fase de leitura).
 Recebe o pedido e o MAPA de arquivos do projeto.
@@ -52,7 +53,7 @@ Máximo 12 paths em impact. Sem código. Responda só JSON.`;
 
 
 async function ask(db: Db, userId: string, instruction: string, messages: { role: "user" | "model"; content: string }[], signal: AbortSignal, maxOutputTokens: number): Promise<string> {
-  const opened = await openChatStream(db, userId, messages, signal, false, { instruction, maxOutputTokens, responseMimeType: "application/json" });
+  const opened = await openChatStream(db, userId, messages, signal, false, { instruction, maxOutputTokens, responseMimeType: "application/json", rotationStrategy: "least-recently-used" });
   if (!opened.ok) throw new CopilotProviderError(opened.error);
   if (!opened.response.body) return "";
   const reader = opened.response.body.getReader();
@@ -125,35 +126,39 @@ export async function generateProCopilot(
   const visible = files.filter(f => !f.deleted && copilotPath(f.path));
   const safe = (f: { content: string }) => f.content.length <= 80_000 && !f.content.includes("\0") && redactSecrets(f.content) === f.content;
   const paths = visible.map(f => f.path);
-  const hist = history.map(h => ({ ...h, content: redactSecrets(h.content) }));
+  const hist = boundedProHistory(history.map(h => ({ ...h, content: redactSecrets(h.content) })));
+  // The most recent user turn is sufficient for file selection; BUILD retains bounded history.
+  const selectionHistory = hist.filter(h => h.role === "user").slice(-1);
 
   let picked: string[] = [];
   try {
-    const raw = await ask(db, userId, PICK, [...hist, { role: "user", content: JSON.stringify({ request: redactSecrets(message), paths: paths.slice(0, 3000) }) }], signal, 2000);
+    const raw = await ask(db, userId, PICK, [...selectionHistory, { role: "user", content: JSON.stringify({ request: redactSecrets(message), paths: paths.slice(0, 3000) }) }], signal, 2000);
     picked = proPickSchema.parse(parseJsonLoose(raw)).read;
   } catch (e) { if (e instanceof CopilotProviderError) throw e; }
   const byPath = new Map(visible.map(f => [f.path, f]));
   const ranked = rankCopilotFiles(visible, message, activePath);
   // Always prefer App.tsx / main entry when present for route integrity
-  const always = ["src/App.tsx", "src/main.tsx", "package.json"].filter(p => byPath.has(p));
+  const always = [activePath, "src/routes/__root.tsx", "src/router.tsx", "src/App.tsx", "src/main.tsx", "package.json"].filter((p): p is string => p !== null && byPath.has(p));
+  const selected = picked.filter(p => byPath.has(p));
   const order = [
-    ...always.map(p => byPath.get(p)!),
-    ...picked.filter(p => byPath.has(p)).map(p => byPath.get(p)!),
-    ...ranked,
+    ...always,
+    ...selected,
+    ...ranked.slice(0, selected.length ? 5 : 12).map(f => f.path),
   ];
-  let budget = 220_000;
+  let budget = PRO_CONTEXT_BUDGET;
   const included = new Map<string, (typeof visible)[number]>();
-  for (const f of order) {
-    if (included.has(f.path) || !safe(f)) continue;
-    const size = f.path.length + f.content.length + 50;
+  for (const path of order) {
+    const f = byPath.get(path);
+    if (!f || included.has(f.path) || !safe(f)) continue;
+    const size = proFileCost(f);
     if (size > budget) continue;
     budget -= size; included.set(f.path, f);
     if (included.size >= 40) break;
   }
 
   const filePayload = [...included.values()].map(f => ({ path: f.path, content: f.content }));
-  const req = [...hist, { role: "user" as const, content: JSON.stringify({
-    project: project.name, request: redactSecrets(message), paths: paths.slice(0, 3000),
+  const req = [...selectionHistory, { role: "user" as const, content: JSON.stringify({
+    project: project.name, request: redactSecrets(message),
     files: filePayload,
   }) }];
 
@@ -172,14 +177,17 @@ export async function generateProCopilot(
       if (Array.isArray(planObj.impact)) {
         for (const p of planObj.impact.slice(0, 12)) {
           const f = byPath.get(p);
-          if (f && !included.has(p) && safe(f) && included.size < 40) included.set(p, f);
+          if (f && !included.has(p) && safe(f) && included.size < 40 && proFileCost(f) <= budget) {
+            budget -= proFileCost(f);
+            included.set(p, f);
+          }
         }
       }
     }
   } catch { /* plan is advisory */ }
 
   const reqBuild = [...hist, { role: "user" as const, content: JSON.stringify({
-    project: project.name, request: redactSecrets(message), paths: paths.slice(0, 3000),
+    project: project.name, request: redactSecrets(message),
     plan: planNote || undefined,
     files: [...included.values()].map(f => ({ path: f.path, content: f.content })),
   }) }];
@@ -251,7 +259,7 @@ export async function generateProCopilot(
   // Soft route integrity note (does not block)
   const appChange = changes.find(c => c.path === "src/App.tsx" || c.path === "src/App.jsx");
   if (appChange && /from\s+["']\.\/pages\//.test(appChange.content)) {
-    const pageImports = [...appChange.content.matchAll(/from\s+["'](\.\/pages\/[^"']+)["']/g)].map(m => m[1]!);
+    const pageImports = [...appChange.content.matchAll(/from\s+["'](\.\/pages\/[^"']+)["']/g)].flatMap(m => m[1] ? [m[1]] : []);
     for (const spec of pageImports) {
       const base = spec.replace(/^\.\//, "src/");
       const candidates = [`${base}.tsx`, `${base}.ts`, `${base}.jsx`, `${base}/index.tsx`];

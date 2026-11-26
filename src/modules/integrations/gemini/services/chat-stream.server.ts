@@ -20,7 +20,7 @@ export async function openChatStream(
   history: { role: string; content: string }[],
   signal: AbortSignal,
   engineeringMode = false,
-  options?: { instruction: string; maxOutputTokens: number; responseMimeType?: string; preferredKeyId?: string },
+  options?: { instruction: string; maxOutputTokens: number; responseMimeType?: string; preferredKeyId?: string; rotationStrategy?: "primary" | "least-recently-used" },
 ): Promise<OpenResult> {
   const keys = await loadUsableKeys(db, userId);
   if (keys.length === 0)
@@ -32,7 +32,7 @@ export async function openChatStream(
     };
 
   const now = new Date();
-  let candidates = orderCandidates(keys, now);
+  let candidates = orderCandidates(keys, now, options?.rotationStrategy);
   // Chave preferida (ex.: WLC 1.9.9 — uma API por especialista): vai na frente, as demais
   // continuam como fallback. Se a preferida estiver em cooldown/desativada, segue a rotação normal.
   const preferredId = options?.preferredKeyId;
@@ -119,12 +119,21 @@ export async function openChatStream(
       });
 
       // 400 / erros não recuperáveis: não adianta tentar outro modelo na mesma chave
-      if (!isRecoverable(status)) break;
+      if (!isRecoverable(status)) return { ok: false, error: lastError, aborted: false };
       // 401/403: continua testando todos os modelos da cadeia antes de declarar falha.
 
       // 429 esgota o projeto Google inteiro
       if (sharesQuota(status)) {
         if (key.google_project) exhaustedProjects.add(key.google_project);
+        // Persist shared cooldown so the next PRO phase does not retry a sibling key.
+        for (const sibling of keys) {
+          if (!key.google_project || sibling.id === key.id || sibling.google_project !== key.google_project) continue;
+          await patchKey(db, userId, sibling.id, {
+            status: failedStatus(status),
+            last_error: errorMsg,
+            cooldown_until: new Date(Date.now() + cooldownMs(status)).toISOString(),
+          });
+        }
         keyExhaustedByQuota = true;
         break; // sai do loop de modelos desta chave
       }

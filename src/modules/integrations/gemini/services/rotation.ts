@@ -9,6 +9,7 @@ export interface RotationKey {
   status?: string;
   /** Posição na fila: quem falhou/voltou recebe "agora" e vai para o fim. */
   last_checked_at?: string | null;
+  last_used_at?: string | null;
 }
 /** Limite total de tentativas (chaves × modelos). Com fallback de modelos precisa ser maior. */
 export const MAX_ATTEMPTS = 12;
@@ -26,7 +27,7 @@ export function isFailedKey(status?: string): boolean {
  * posição na fila). Chaves recusadas (status "error") vão para o fim e só são usadas como
  * último recurso quando a espera delas já acabou. Desativadas nunca entram.
  */
-export function orderCandidates<T extends RotationKey>(keys: T[], now: Date = new Date()): T[] {
+export function orderCandidates<T extends RotationKey>(keys: T[], now: Date = new Date(), strategy: "primary" | "least-recently-used" = "primary"): T[] {
   const ready = keys.filter(
     (k) => k.enabled && (!k.cooldown_until || new Date(k.cooldown_until) <= now),
   );
@@ -39,6 +40,20 @@ export function orderCandidates<T extends RotationKey>(keys: T[], now: Date = ne
   const failed = ready
     .filter((k) => isFailedKey(k.status))
     .sort((a, b) => queuePos(a).localeCompare(queuePos(b)));
+  if (strategy === "least-recently-used") {
+    // Quotas are shared: compare the most recent usage of each Google project first.
+    const projectUsage = new Map<string, string>();
+    for (const key of keys) {
+      const project = key.google_project || key.id;
+      const usage = key.last_used_at ?? "";
+      if (usage > (projectUsage.get(project) ?? "")) projectUsage.set(project, usage);
+    }
+    healthy.sort((a, b) =>
+      (projectUsage.get(a.google_project || a.id) ?? "").localeCompare(projectUsage.get(b.google_project || b.id) ?? "") ||
+      (a.last_used_at ?? "").localeCompare(b.last_used_at ?? "") ||
+      Number(b.is_primary) - Number(a.is_primary) || queuePos(a).localeCompare(queuePos(b)) || a.id.localeCompare(b.id),
+    );
+  }
   return [...healthy, ...failed];
 }
 

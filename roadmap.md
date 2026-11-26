@@ -1,5 +1,11 @@
 # Roadmap
 
+## Otimização WLC 1.7.1 PRO
+- [ ] Reduzir contexto repetido e limitar expansão do plano ao orçamento.
+- [ ] Substituir fallback heurístico por correspondência com offsets verificáveis.
+- [ ] Distribuir fases entre projetos Gemini saudáveis menos recentemente usados.
+- [ ] Rodar regressões e verificar fluxo autenticado; registrar limitações.
+
 - [x] Fellow hardening: admin nested routes, anti-stub detectors, prompt rules
 - [x] Update INTEGRATIONS_MASTER_KEY secret
 

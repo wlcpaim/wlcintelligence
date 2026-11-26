@@ -27,7 +27,7 @@ export function applyEdits(original: string, edits: { search: string; replace: s
 }
 
 /**
- * Edição tolerante: exact → line-ending normalize → trim de bordas → colapso de whitespace interno.
+ * Edição tolerante: exact → line-ending normalize → trim → normalização de indentação.
  * Usado pelo Elite Engineering Agent quando o search/replace frágil falharia por indentação/CRLF.
  */
 export function applyEditsRobust(original: string, edits: { search: string; replace: string }[]): string {
@@ -63,30 +63,20 @@ export function applyEditsRobust(original: string, edits: { search: string; repl
       }
     }
 
-    // 4. Collapse runs of whitespace (preserve uniqueness via first match only if unique after collapse map)
-    const collapse = (s: string) => s.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n");
-    const collapsedOut = collapse(normOut);
-    const collapsedSearch = collapse(normSearch.trim());
-    if (collapsedSearch.length > 0) {
-      const cIdx = collapsedOut.indexOf(collapsedSearch);
-      if (cIdx >= 0 && collapsedOut.indexOf(collapsedSearch, cIdx + 1) < 0) {
-        // Map collapsed index back is non-trivial; fall back to locating first line of search in original
-        const firstLine = normSearch.trim().split("\n").map(l => l.trim()).find(l => l.length > 8) ?? trimmedSearch.slice(0, 40);
-        const lineIdx = normOut.indexOf(firstLine);
-        if (lineIdx >= 0 && e.replace.length > 0) {
-          // Replace a window starting at first distinctive line spanning search line count
-          const searchLines = Math.max(1, normSearch.trim().split("\n").length);
-          let end = lineIdx;
-          let lines = 0;
-          while (end < normOut.length && lines < searchLines) {
-            const nl = normOut.indexOf("\n", end);
-            if (nl < 0) { end = normOut.length; break; }
-            end = nl + 1;
-            lines++;
-          }
-          out = normOut.slice(0, lineIdx) + e.replace + (e.replace.endsWith("\n") || normOut[end - 1] === "\n" ? "" : "") + normOut.slice(end);
-          continue;
-        }
+    // 4. Map every normalized character back to the source, never guess a line window.
+    // Only leading indentation is normalized; literal/internal spaces remain significant.
+    const mapped = normalizeIndentation(normOut);
+    const normalizedSearch = normalizeIndentation(normSearch.trim()).text;
+    const cIdx = mapped.text.indexOf(normalizedSearch);
+    if (normalizedSearch.length > 0 && cIdx >= 0) {
+      if (mapped.text.indexOf(normalizedSearch, cIdx + 1) >= 0) {
+        throw new Error(`Trecho ambíguo após normalização: "${e.search.slice(0, 60)}"`);
+      }
+      const start = mapped.starts[cIdx];
+      const end = mapped.ends[cIdx + normalizedSearch.length - 1];
+      if (start !== undefined && end !== undefined) {
+        out = normOut.slice(0, start) + e.replace + normOut.slice(end);
+        continue;
       }
     }
 
@@ -97,6 +87,26 @@ export function applyEditsRobust(original: string, edits: { search: string; repl
     throw new Error(`Trecho não localizado para substituição: "${e.search.slice(0, 60)}..."`);
   }
   return out;
+}
+
+function normalizeIndentation(source: string): { text: string; starts: number[]; ends: number[] } {
+  let text = "";
+  const starts: number[] = [], ends: number[] = [];
+  for (let i = 0; i < source.length;) {
+    const start = i;
+    const char = source[i];
+    if (char === undefined) break;
+    if ((i === 0 || source[i - 1] === "\n") && /[ \t]/.test(char)) {
+      while (i < source.length && /[ \t]/.test(source[i] ?? "")) i++;
+      text += " ";
+    } else {
+      text += char;
+      i++;
+    }
+    starts.push(start);
+    ends.push(i);
+  }
+  return { text, starts, ends };
 }
 
 export function parseJsonLoose(text: string): unknown {
